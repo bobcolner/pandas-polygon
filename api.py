@@ -8,16 +8,13 @@ import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 
+
 BASE_URL = 'https://api.polygon.io'
-API_KEY = os.environ['polygon_api_key']
 
-
-def read_matching_files(glob_string, format='csv'):
-    if format == 'csv':
-        df = pd.concat(map(pd.read_csv, glob.glob(os.path.join('', glob_string))), ignore_index=True)
-    elif format == 'parquet':
-        df = pd.concat(map(pd.read_parquet, glob.glob(os.path.join('', glob_string))), ignore_index=True)
-    return df
+if 'polygon_api_key' in os.environ:
+    API_KEY = os.environ['polygon_api_key']
+else:
+    raise ValueError('missing poloyon api key')
 
 
 def validate_response(response):
@@ -33,7 +30,7 @@ def get_grouped_daily(locale='us', market='stocks', date='2020-01-02'):
     return validate_response(response)
 
 
-def get_market_daily_candels(date='2020-01-02'):
+def get_market_candels_date(date='2020-01-02'):
     daily = get_grouped_daily(locale='us', market='stocks', date=date)
     daily_df = pd.DataFrame(daily)
     daily_df = daily_df.rename(columns={'T': 'symbol',
@@ -43,19 +40,36 @@ def get_market_daily_candels(date='2020-01-02'):
                                         'h': 'high',
                                         'l': 'low',
                                         't': 'epoch'})
-    daily_df['dt_nyc'] = pd.to_datetime(daily_df.epoch, utc=True, unit='ms').tz_convert('America/New_York')
+    daily_df['date_time'] = pd.to_datetime(daily_df.epoch, utc=True, unit='ms') #.tz_convert('America/New_York')
     return daily_df
 
 
-def get_market_daily_bar_range(start_date='2020-01-02', end_date='2020-01-02'):
+def get_market_candels_dates(start_date, end_date, save='both'):
 
-    dates = date_range(start_date, end_date)
+    req_dates = get_market_dates(start_date=start_date, end_date=end_date)
+    
+    if save == 'both':
+        existing_dates = get_file_dates(f"data/daily_bars/parquet")
+    else:
+        existing_dates = get_file_dates(f"data/daily_bars/{save}")
+
+    dates = get_remaining_dates(req_dates=req_dates, existing_dates=existing_dates)
     set_df = pd.DataFrame()
-    for date in dates:
-        daily_df = get_market_daily_candels(date=date)
-        set_df = set_df.append(daily_df, ignore_index=True, verify_integrity=False, sort=None)
 
-    return set_df
+    for date in dates: 
+        print('downloading: ', date)
+        daily_df = get_market_candels_date(date=date)
+        
+        if save in ['csv', 'both']:
+            pathlib.Path(f"/Users/bobcolner/QuantClarity/data/daily_bars/csv").mkdir(parents=True, exist_ok=True)
+            daily_df.to_csv(f"data/daily_bars/csv/market_{date}.csv", index=False)
+
+        if save in ['parquet', 'both']:
+            pathlib.Path(f"/Users/bobcolner/QuantClarity/data/daily_bars/parquet").mkdir(parents=True, exist_ok=True)
+            daily_df.to_parquet(f"data/daily_bars/parquet/market_{date}.parquet", index=False, engine='fastparquet')
+            pathlib.Path(f"/Users/bobcolner/QuantClarity/data/daily_bars/feather").mkdir(parents=True, exist_ok=True)
+            daily_df.to_feather(f"data/daily_bars/feather/market_{date}.feather")
+    
 
 
 def get_markets():
@@ -204,6 +218,14 @@ def get_trades_date(symbol: str, date: str):
 
 def get_trades_dates(symbol, start_date, end_date, save='both'):
 
+    def validate_trades(trades_df):
+        if len(trades_df) < 1:
+            raise ValueError('0 length trades df')
+        elif any(trades_df.count() == 0):
+            raise ValueError('trades df missing fields. Recent historic data may not be ready for consumption')
+        else:
+            return(trades_df)
+
     req_dates = get_market_dates(start_date=start_date, end_date=end_date)
     
     if save == 'both':
@@ -216,6 +238,7 @@ def get_trades_dates(symbol, start_date, end_date, save='both'):
     for date in dates:
         
         ticks_df = get_trades_date(symbol=symbol, date=date)
+        ticks_df = validate_trades(trades_df=ticks_df)
 
         if save in ['csv', 'both']:
             pathlib.Path(f"/Users/bobcolner/QuantClarity/data/ticks/csv/{symbol}").mkdir(parents=True, exist_ok=True)
@@ -224,101 +247,3 @@ def get_trades_dates(symbol, start_date, end_date, save='both'):
         if save in ['parquet', 'both']:
             pathlib.Path(f"/Users/bobcolner/QuantClarity/data/ticks/parquet/{symbol}").mkdir(parents=True, exist_ok=True)
             ticks_df.to_parquet(f"data/ticks/parquet/{symbol}/{symbol}_{date}.parquet", index=False, engine='fastparquet')
-
-# anaysis
-
-def get_outliers(ts,  multiple=6):
-    ts['price_pct_change'] = ts['price'].pct_change() * 100
-    toss_thresh = ts['price_pct_change'].std() * multiple
-    outliers_idx = ts['price_pct_change'].abs() > toss_thresh
-    # ts['outliers_idx'] = outliers_idx
-    # return ts[-outliers_idx]
-    return outliers_idx
-
-
-def sign_trades(ts):
-    nrows = list(range(len(ts)))
-    tick_side = []
-    tick_side.append(1)
-        
-    for nrow in nrows:
-        if ts['price_pct_change'][nrow] > 0.0:
-            tick_side.append(1)
-        elif ts['price_pct_change'][nrow] < 0.0:
-            tick_side.append(-1)
-        elif ts['price_pct_change'][nrow] == 0.0:
-            tick_side.append(tick_side[-1])
-
-    ts['side'] = tick_side
-    return ts
-
-
-def epoch_to_timestamps(df, column='epoch'):
-    ts['timestamp'] = pd.to_datetime(ts[column], utc=True, unit='ns')
-    # ts['timestamp_nyc'] = ts['timestamp'].tz_convert('America/New_York')
-    return ts
-
-
-def trunc_timestamp(ts, trunc_epoch=['ms', 'cs', 'ds', 'sec'], trunc_timestamp=False):
-    
-    if trunc_timestamp:
-        ts['timestamp'] = pd.to_datetime(ts[column], utc=True, unit='ns')
-    
-    # ts['epoch_ns'] = ts.epoch.floordiv(10 ** 1)
-    if 'micro' in trunc_epoch:
-        ts['epoch_micro'] = ts['epoch'].floordiv(10 ** 3)
-    if 'ms' in trunc_epoch:
-        ts['epoch_ms'] = ts['epoch'].floordiv(10 ** 6)
-        if trunc_timestamp:
-            ts['timestamp_ms'] = ts['timestamp'].values.astype('<M8[ms]')
-    if 'cs' in trunc_epoch:
-        ts['epoch_cs'] = ts['epoch'].floordiv(10 ** 7)
-    if 'ds' in trunc_epoch:
-        ts['epoch_ds'] = ts['epoch'].floordiv(10 ** 8)
-    if 'sec' in trunc_epoch:
-        ts['epoch_sec'] = ts['epoch'].floordiv(10 ** 9)
-        if trunc_timestamp:
-            ts['timestamp_sec'] = ts['timestamp'].values.astype('<M8[s]')
-    if 'min' in trunc_epoch:
-        ts['epoch_min'] = ts['epoch'].floordiv((10 ** 9) * 60)
-        if trunc_timestamp:
-            ts['timestamp_min'] = ts['timestamp'].values.astype('<M8[m]')
-    if 'min10' in trunc_epoch:
-        ts['epoch_min10'] = ts['epoch'].floordiv((10 ** 9) * 60 * 10)
-    if 'min15' in trunc_epoch:
-        ts['epoch_min15'] = ts['epoch'].floordiv((10 ** 9) * 60 * 15)
-    if 'min30' in trunc_epoch:
-        ts['epoch_min30'] = ts['epoch'].floordiv((10 ** 9) * 60 * 30)
-    if 'hour' in trunc_epoch:
-        ts['epoch_hour'] = ts['epoch'].floordiv((10 ** 9) * 60 * 60)
-        if trunc_timestamp:
-            ts['timestamp_hour'] = ts['timestamp'].values.astype('<M8[h]')
-    return ts
-
-
-def ts_groupby(df, column='epoch_cs'):
-    ts = df.copy()
-    groups = ts.groupby(column, as_index=False, squeeze=True, ).agg({'price': ['count', 'mean'], 'volume':'sum'})
-    groups.columns = ['_'.join(tup).rstrip('_') for tup in groups.columns.values]
-    return groups
-
-
-def rolling_decay_vwap(ts, window_len=7, decay='none'):
-    exp_decay = stats.expon.pdf(x=list(range(0, window_len)))
-    nrows = list(range(len(ts)))
-    vwap = []
-    for nrow in nrows:
-        if nrow >= window_len:
-            price = ts['price'][nrow - window_len:nrow].values
-            volume = ts['volume'][nrow - window_len:nrow].values
-            if decay == 'exp':
-                weight = volume * exp_decay
-            if decay == 'linear':
-                weight = np.array(range(1, window_len+1)) / window_len
-            if decay == 'none':
-                weight = volume
-            tmp = (price * weight).sum() / weight.sum()
-            vwap.append(tmp)
-        else:
-            vwap.append(None)
-    return vwap

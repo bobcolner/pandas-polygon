@@ -1,7 +1,11 @@
-# import ipdb; ipdb.set_trace(context=10)
-# import pudb; pu.db
+import os
+import glob
+import datetime
+import requests
+import scipy.stats as stats
+import numpy as np
+import pandas as pd
 
-# anaysis
 
 def read_matching_files(glob_string, format='csv'):
     if format == 'csv':
@@ -240,7 +244,7 @@ def update_bar(epoch, price, volume, bars, s):
     s['dollar'] += price * volume
 
     s['bar_return'] = price - s['trades']['price'][0]
-    s['price_range'], s['price_min'], s['price_max'] = update_price_stats(price, s['price_min'], s['price_max'])
+    s['price_range'], s['price_min'], s['price_max'] = api.update_price_stats(price, s['price_min'], s['price_max'])
 
     s['tick_imbalance'] += tick_side
     s['volume_imbalance'] += tick_side * volume
@@ -266,7 +270,7 @@ def update_bar(epoch, price, volume, bars, s):
         s['next_bar'] = 'bar_return'
     if s['thresh_renko']:
         try:
-            s['thresh_renko_bull'], s['thresh_renko_bear'] = get_next_renko_thresh(s['thresh_renko'], bars[-1]['bar_return'])
+            s['thresh_renko_bull'], s['thresh_renko_bear'] = api.get_next_renko_thresh(s['thresh_renko'], bars[-1]['bar_return'])
         except:
             s['thresh_renko_bull'] = s['thresh_renko']
             s['thresh_renko_bear'] = -s['thresh_renko']

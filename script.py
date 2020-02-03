@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import polygon_rest_api as api
+# import ipdb; ipdb.set_trace(context=10)
 # import pudb; pu.db
 
 symbol='GLD'

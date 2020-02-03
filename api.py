@@ -1,10 +1,7 @@
 import os
-import glob
 import datetime
 import pathlib
 import requests
-import scipy.stats as stats
-import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 

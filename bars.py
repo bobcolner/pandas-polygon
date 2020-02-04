@@ -224,68 +224,71 @@ def save_bar(state):
     return new_bar
 
 
-def update_bar(epoch, price, volume, bars, s):
+def update_bar(tick, output_bars, state):
     
-    s['trades']['epoch'].append(epoch)
-    s['trades']['price'].append(price)
-    s['trades']['volume'].append(volume)
+    state['trades']['epoch'].append(tick['epoch'])
+    state['trades']['price'].append(tick['price'])
+    state['trades']['volume'].append(tick['volume'])
 
     try:
-        tick_side = tick_rule(first_price=price, second_price=s['trades']['price'][-2], last_side=s['trades']['side'][-1])
+        tick_side = tick_rule(first_price=price, second_price=state['trades']['price'][-2], last_side=state['trades']['side'][-1])
     except: 
         tick_side = 0
-    s['trades']['side'].append(tick_side)
+    state['trades']['side'].append(tick_side)
 
-    # s['now_diff'] = int(datetime.datetime.utcnow().timestamp() * 1000000000) - s['trades']['epoch'][0]
-    s['duration_ns'] = epoch - s['trades']['epoch'][0]
+    # state['now_diff'] = int(datetime.datetime.utcnow().timestamp() * 1000000000) - state['trades']['epoch'][0]
+    state['duration_ns'] = tick['epoch'] - state['trades']['epoch'][0]
 
-    s['ticks'] += 1
-    s['volume'] += volume
-    s['dollar'] += price * volume
+    state['ticks'] += 1
+    state['volume'] += tick['volume']
+    state['dollar'] += tick['price'] * tick['volume']
 
-    s['bar_return'] = price - s['trades']['price'][0]
-    s['price_range'], s['price_min'], s['price_max'] = api.update_price_stats(price, s['price_min'], s['price_max'])
+    state['bar_return'] = tick['price'] - state['trades']['price'][0]
+    state['price_range'], state['price_min'], state['price_max'] = update_price_stats(tick['price'], state['price_min'], state['price_max'])
 
-    s['tick_imbalance'] += tick_side
-    s['volume_imbalance'] += tick_side * volume
-    s['dollar_imbalance'] += tick_side * volume * price
+    state['tick_imbalance'] += tick_side
+    state['volume_imbalance'] += tick_side * tick['volume']
+    state['dollar_imbalance'] += tick_side * tick['volume'] * tick['price']
 
-    if s['thresh_duration_ns'] and s['duration_ns'] > s['thresh_duration_ns']:
-        s['next_bar'] = 'duration'
-    if s['thresh_ticks'] and s['ticks'] > s['thresh_ticks']:
-        s['next_bar'] = 'tick_coumt'
-    if s['thresh_volume'] and s['volume'] > s['thresh_volume']:
-        s['next_bar'] = 'volume_sum'
-    if s['thresh_dollar'] and s['dollar'] > s['thresh_dollar']:
-        s['next_bar'] = 'dollar_sum'
-    if s['thresh_tick_imbalance'] and s['tick_imbalance'] > s['thresh_tick_imbalance']:
-        s['next_bar'] = 'tick_imbalance'
-    if s['thresh_volume_imbalance'] and s['volume_imbalance'] > s['thresh_volume_imbalance']:
-        s['next_bar'] = 'volumne_imbalance'        
-    if s['thresh_dollar_imbalance'] and s['dollar_imbalance'] > s['thresh_dollar_imbalance']:
-        s['next_bar'] = 'dollar_imbalence'
-    if s['thresh_price_range'] and s['price_range'] > s['thresh_price_range']:
-        s['next_bar'] = 'price_range'
-    if s['thresh_return'] and abs(s['bar_return']) > s['thresh_return']:
-        s['next_bar'] = 'bar_return'
-    if s['thresh_renko']:
+    if state['thresh_duration_ns'] and state['duration_ns'] > state['thresh_duration_ns']:
+        state['next_bar'] = 'duration'
+    if state['thresh_ticks'] and state['ticks'] > state['thresh_ticks']:
+        state['next_bar'] = 'tick_coumt'
+    if state['thresh_volume'] and state['volume'] > state['thresh_volume']:
+        state['next_bar'] = 'volume_sum'
+    if state['thresh_dollar'] and state['dollar'] > state['thresh_dollar']:
+        state['next_bar'] = 'dollar_sum'
+    if state['thresh_tick_imbalance'] and state['tick_imbalance'] > state['thresh_tick_imbalance']:
+        state['next_bar'] = 'tick_imbalance'
+    if state['thresh_volume_imbalance'] and state['volume_imbalance'] > state['thresh_volume_imbalance']:
+        state['next_bar'] = 'volumne_imbalance'        
+    if state['thresh_dollar_imbalance'] and state['dollar_imbalance'] > state['thresh_dollar_imbalance']:
+        state['next_bar'] = 'dollar_imbalence'
+    if state['thresh_price_range'] and state['price_range'] > state['thresh_price_range']:
+        state['next_bar'] = 'price_range'
+    if state['thresh_return'] and abs(state['bar_return']) > state['thresh_return']:
+        state['next_bar'] = 'bar_return'
+    if state['thresh_renko']:
         try:
-            s['thresh_renko_bull'], s['thresh_renko_bear'] = api.get_next_renko_thresh(s['thresh_renko'], bars[-1]['bar_return'])
+            state['thresh_renko_bull'], state['thresh_renko_bear'] = get_next_renko_thresh(
+                thresh_renko=state['thresh_renko'], 
+                last_return=output_bars[-1]['bar_return']
+                )
         except:
-            s['thresh_renko_bull'] = s['thresh_renko']
-            s['thresh_renko_bear'] = -s['thresh_renko']
+            state['thresh_renko_bull'] = state['thresh_renko']
+            state['thresh_renko_bear'] = -state['thresh_renko']
 
-        if s['bar_return'] > s['thresh_renko_bull']:
-            s['next_bar'] = 'renko'
-        if s['bar_return'] < s['thresh_renko_bear']:
-            s['next_bar'] = 'renko'
+        if state['bar_return'] > state['thresh_renko_bull']:
+            state['next_bar'] = 'renko'
+        if state['bar_return'] < state['thresh_renko_bear']:
+            state['next_bar'] = 'renko'
 
-    if s['next_bar'] != 'waiting':
-        print('new bar! type: ', s['next_bar'])
+    if state['next_bar'] != 'waiting':
+        print('new bar: ', state['next_bar'])
         # save new bar
-        new_bar = save_bar(s)    
-        bars.append(new_bar)
+        new_bar = save_bar(state)    
+        output_bars.append(new_bar)
         # reset counter vars
-        s = reset_state()
+        state = reset_state()
 
-    return bars, s
+    return output_bars, state

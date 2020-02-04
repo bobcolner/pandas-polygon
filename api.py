@@ -8,8 +8,8 @@ import pandas_market_calendars as mcal
 
 BASE_URL = 'https://api.polygon.io'
 
-if 'polygon_api_key' in os.environ:
-    API_KEY = os.environ['polygon_api_key']
+if 'POLYGON_API_KEY' in os.environ:
+    API_KEY = os.environ['POLYGON_API_KEY']
 else:
     raise ValueError('missing poloyon api key')
 

@@ -1,5 +1,6 @@
 import os
 import datetime
+import glob
 import pathlib
 import requests
 import pandas as pd
@@ -244,3 +245,12 @@ def get_trades_dates(symbol, start_date, end_date, save='both'):
         if save in ['parquet', 'both']:
             pathlib.Path(f"/Users/bobcolner/QuantClarity/data/ticks/parquet/{symbol}").mkdir(parents=True, exist_ok=True)
             ticks_df.to_parquet(f"data/ticks/parquet/{symbol}/{symbol}_{date}.parquet", index=False, engine='fastparquet')
+
+
+def read_matching_files(glob_string, format='csv'):
+    if format == 'csv':
+        return pd.concat(map(pd.read_csv, glob.glob(os.path.join('', glob_string))), ignore_index=True)
+    elif format == 'parquet':
+        return pd.concat(map(pd.read_parquet, glob.glob(os.path.join('', glob_string))), ignore_index=True)
+    elif format == 'feather':
+        return pd.concat(map(pd.read_feather, glob.glob(os.path.join('', glob_string))), ignore_index=True)

@@ -1,3 +1,5 @@
+# import ipdb; ipdb.set_trace(context=10)
+
 def bar_stats(ticks):
     bar = {}
     bar['wkde'] = weighted_kernel_density_1d(values=ticks['price'], weights=ticks['volume'])
@@ -33,3 +35,24 @@ def find_bar_params(ts, num_bars=100):
     d['dollar_thresh'] = round((np.mean(ts['price']) * sum(ts['volume'])) / num_bars)
     d['minute_thresh'] = round((6.5 / num_bars) * 60)
     return d
+
+# state['thresh_duration_ns'] = params['thresh_duration_ns']
+    # state['thresh_ticks'] = 250
+    # state['thresh_volume'] = 50000
+    # state['thresh_dollar'] = 6000000
+    # state['thresh_tick_imbalance'] = 10 ** 3
+    # state['thresh_volume_imbalance'] = 10 ** 4
+    # state['thresh_dollar_imbalance']  = 10 ** 5 
+    # state['thresh_price_range'] = 0.3
+    # state['thresh_return'] = 0.2
+    # state['thresh_renko'] = 0.1
+    # state['thresh_tick_run'] = 10
+    # state['thresh_volume_run'] = 10 ** 4
+    # state['thresh_dollar_run'] = 10 ** 6
+    
+if len(output_bars) > 0:
+        last_bar_side = output_bars[-1]['bar_return']
+    else:
+        last_bar_side = 0 
+
+import ipdb; ipdb.set_trace(context=10)

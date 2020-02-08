@@ -1,4 +1,6 @@
-# import ipdb; ipdb.set_trace(context=10)
+import ipdb; ipdb.set_trace(context=10)
+
+bars[['open_time', 'price_vwap', 'tick_count', 'volume_sum', 'tick_run_max', 'tick_imbalance']]
 
 def bar_stats(ticks):
     bar = {}

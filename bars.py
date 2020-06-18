@@ -118,10 +118,14 @@ def reset_state(thresh={}):
     state['thresh'] = thresh
     # accululators
     state['duration_ns'] = 0
+    state['duration_sec'] = 0
+    state['duration_min'] = 0
     state['price_min'] = 10 ** 5
     state['price_max'] = 0
     state['price_range'] = 0
     state['bar_return'] = 0
+    state['tick_diff'] = 0
+    state['tick_pct_change'] = 0
     state['tick_count'] = 0
     state['volume_sum'] = 0
     state['dollar_sum'] = 0
@@ -144,15 +148,12 @@ def reset_state(thresh={}):
     state['trades']['volume'] = []
     state['trades']['side'] = []
     # trigger status
-    state['next_bar'] = 'waiting'
+    state['bar_trigger_state'] = 'waiting'
     return state
 
 
 def weighted_kernel_density_1d(values, weights, bw='silverman', plot=False):
     from statsmodels.nonparametric.kde import KDEUnivariate
-    # “scott” - 1.059 * A * nobs ** (-1/5.), where A is min(std(X),IQR/1.34)
-    # “silverman” - .9 * A * nobs ** (-1/5.), where A is min(std(X),IQR/1.34)
-    # "normal_reference" - C * A * nobs ** (-1/5.), where C is
     kden= KDEUnivariate(values)
     kden.fit(weights=weights, bw=bw, fft=False)
     if plot:
@@ -189,9 +190,11 @@ def save_bar(state, wkde=False):
     new_bar = {}
     if state['tick_count'] == 0:
         return new_bar
-    new_bar['bar_trigger'] = state['next_bar']
-    new_bar['first_tick_at'] = pd.to_datetime(state['trades']['epoch'][0], utc=True, unit='ns')
-    new_bar['last_tick_at'] = pd.to_datetime(state['trades']['epoch'][-1], utc=True, unit='ns')
+    new_bar['bar_trigger'] = state['bar_trigger_state']
+    new_bar['open_at'] = pd.to_datetime(state['trades']['epoch'][0], utc=True, unit='ns')
+    new_bar['close_at'] = pd.to_datetime(state['trades']['epoch'][-1], utc=True, unit='ns')
+    new_bar['duration_sec'] = (new_bar['close_at'] - new_bar['open_at']).total_seconds()
+    new_bar['duration_min'] = new_bar['duration_sec'] / 60
     new_bar['duration_ns'] = state['duration_ns']
     new_bar['price_open'] = state['trades']['price'][0]
     new_bar['price_close'] = state['trades']['price'][-1]
@@ -222,23 +225,23 @@ def save_bar(state, wkde=False):
 
 def bar_thresh(state, last_bar_return=0):
     if 'duration_ns' in state['thresh'] and state['duration_ns'] > state['thresh']['duration_ns']:
-        state['next_bar'] = 'duration'
+        state['bar_trigger_state'] = 'duration'
     if 'ticks' in state['thresh'] and state['tick_count'] >= state['thresh']['ticks']:
-        state['next_bar'] = 'tick_coumt'
+        state['bar_trigger_state'] = 'tick_coumt'
     if 'volume' in state['thresh'] and state['volume_sum'] >= state['thresh']['volume']:
-        state['next_bar'] = 'volume_sum'
+        state['bar_trigger_state'] = 'volume_sum'
     if 'dollar' in state['thresh'] and state['dollar_sum'] >= state['thresh']['dollar']:
-        state['next_bar'] = 'dollar_sum'
+        state['bar_trigger_state'] = 'dollar_sum'
     if 'tick_imbalance' in state['thresh'] and abs(state['tick_imbalance']) >= state['thresh']['tick_imbalance']:
-        state['next_bar'] = 'tick_imbalance'
+        state['bar_trigger_state'] = 'tick_imbalance'
     if 'volume_imbalance' in state['thresh'] and abs(state['volume_imbalance']) >= state['thresh']['volume_imbalance']:
-        state['next_bar'] = 'volumne_imbalance'        
+        state['bar_trigger_state'] = 'volumne_imbalance'        
     if 'dollar_imbalance' in state['thresh'] and abs(state['dollar_imbalance']) >= state['thresh']['dollar_imbalance']:
-        state['next_bar'] = 'dollar_imbalence'
+        state['bar_trigger_state'] = 'dollar_imbalence'
     if 'price_range' in state['thresh'] and state['price_range'] >= state['thresh']['price_range']:
-        state['next_bar'] = 'price_range'
+        state['bar_trigger_state'] = 'price_range'
     if 'return' in state['thresh'] and abs(state['bar_return']) >= state['thresh']['return']:
-        state['next_bar'] = 'bar_return'
+        state['bar_trigger_state'] = 'bar_return'
     if 'renko' in state['thresh']:
         try:
             state['thresh']['renko_bull'], state['thresh']['renko_bear'] = get_next_renko_thresh(
@@ -250,15 +253,15 @@ def bar_thresh(state, last_bar_return=0):
             state['thresh']['renko_bear'] = -state['thresh']['renko']
 
         if state['bar_return'] >= state['thresh']['renko_bull']:
-            state['next_bar'] = 'renko'
+            state['bar_trigger_state'] = 'renko'
         if state['bar_return'] < state['thresh']['renko_bear']:
-            state['next_bar'] = 'renko'
+            state['bar_trigger_state'] = 'renko'
     if 'tick_run' in state['thresh'] and state['tick_run'] >= state['thresh']['tick_run']:
-        state['next_bar'] = 'tick_run'
+        state['bar_trigger_state'] = 'tick_run'
     if 'volume_run' in state['thresh'] and state['volume_run'] >= state['thresh']['volume_run']:
-        state['next_bar'] = 'volume_run'
+        state['bar_trigger_state'] = 'volume_run'
     if 'dollar_run' in state['thresh'] and state['dollar_run'] >= state['thresh']['dollar_run']:
-        state['next_bar'] = 'dollar_run'
+        state['bar_trigger_state'] = 'dollar_run'
 
     return state
 
@@ -294,7 +297,8 @@ def imbalance_net(state):
     return state
 
 
-def update_bar(tick, output_bars, state, thresh={}):
+def update_bar(tick, output_bars, state, thresh={}, outliner_pct_change = 0.002):
+    
     if tick['volume'] <= 0:
         print('dropping zero volume tick')
         print(tick)
@@ -302,9 +306,18 @@ def update_bar(tick, output_bars, state, thresh={}):
 
     state['trades']['epoch'].append(tick['epoch'])
     state['trades']['price'].append(tick['price'])
-    state['trades']['volume'].append(tick['volume'])
+    state['trades']['volume'].append(tick['volume']) 
 
     if len(state['trades']['price']) >= 2:
+        
+        state['tick_diff'] = state['trades']['price'][-1] - state['trades']['price'][-2]
+        state['tick_pct_change'] = state['tick_diff'] / state['trades']['price'][-2]
+        
+        if abs(state['tick_pct_change']) > outliner_pct_change:
+            print('dropping outlier tick: ', state['tick_pct_change'])
+            print(tick)
+            return output_bars, state
+
         tick_side = tick_rule(first_price=state['trades']['price'][-1], 
                             second_price=state['trades']['price'][-2], 
                             last_side=state['trades']['side'][-1])
@@ -324,12 +337,12 @@ def update_bar(tick, output_bars, state, thresh={}):
     state['price_max'] = tick['price'] if tick['price'] > state['price_max'] else state['price_max']
     state['price_range'] = state['price_max'] - state['price_min']
     state['bar_return'] = tick['price'] - state['trades']['price'][0]
-    
+
     last_bar_side = output_bars[-1]['bar_return'] if len(output_bars) > 0 else 0
     state = bar_thresh(state, last_bar_return=last_bar_side)
 
-    if state['next_bar'] != 'waiting':
-        print('new bar: ', state['next_bar'])
+    if state['bar_trigger_state'] != 'waiting':
+        # print('new bar: ', state['bar_trigger_state'])
         # save new bar
         new_bar = save_bar(state)
         output_bars.append(new_bar)
@@ -355,6 +368,7 @@ def build_bars(ts, thresh={}, as_df=True):
 
     if as_df:
         output_bars = pd.DataFrame(output_bars)
+        output_bars = output_bars.set_index('close_at')
 
     return output_bars, state
 
@@ -372,6 +386,7 @@ def time_bars(ts, date, freq='15min', as_df=True):
         _, state = build_bars(ts=ticks, thresh={})
         bar = save_bar(state)
         bar['time_open'] = dr[i]
+        bar['time_close'] = dr[i+1]
         new_bars.append(bar)
 
     new_bars = pd.DataFrame(new_bars) if as_df is True else new_bars

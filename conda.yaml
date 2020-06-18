@@ -1,0 +1,27 @@
+name: ticks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python = 3.8
+  - nomkl
+  - openblas
+  - numpy
+  - scipy
+  - pandas
+  - pandas_market_calendars
+  - ipython
+  - requests
+  - trio_websocket
+  - trio
+  - dask
+  - distributed
+  - python-blosc
+  - cytoolz
+  - lz4
+  - graphviz
+  - prefect[viz]
+  - google-cloud-storage
+  - pip
+  - pip:
+    - google-cloud-logging 

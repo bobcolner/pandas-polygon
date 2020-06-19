@@ -17,7 +17,7 @@ def validate_response(response):
         response.raise_for_status()
 
 
-def get_grouped_daily(locale='us', market='stocks', date='2020-01-02'):
+def get_grouped_daily(date:str, locale='us', market='stocks'):
     url = BASE_URL + f"/v2/aggs/grouped/locale/{locale}/market/{market}/{date}?apiKey={API_KEY}"
     response = get(url)
     return validate_response(response)

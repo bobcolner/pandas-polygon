@@ -1,7 +1,12 @@
 from time import time_ns, time
 import json
 import pandas as pd
+from trio import run
 from trio_websocket import open_websocket_url
+
+
+def run_stream_ticks(tickers='T.SPY, Q.SPY', file_name='data.txt'):
+    run(stream_ticks, tickers, file_name)
 
 
 async def stream_ticks(tickers="T.GLD, Q.GLD", output_fname='data.txt'):

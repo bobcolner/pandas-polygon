@@ -15,16 +15,9 @@ def get_outliers(ts,  multiple=6):
     return outliers_idx
 
 
-def epoch_to_dt(ts):
-    ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
-    # ts['date_time_nyc'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns').dt.tz_convert('US/Eastern') #'America/New_York'
-    # ts['date_time_nyc'] = ts['date_time'].dt.tz_convert('US/Eastern')
-    return ts
-
-
 def trunc_timestamp(ts, trunc_list=None, add_date_time=False):
     if add_date_time:
-        ts = epoch_to_dt(ts)
+        ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
     # ts['epoch_ns'] = ts.epoch.floordiv(10 ** 1)
     if 'micro' in trunc_list:
         ts['epoch_micro'] = ts['epoch'].floordiv(10 ** 3)
@@ -375,12 +368,13 @@ def build_bars(ts, thresh={}, as_df=True):
 
 def time_bars(ts, date, freq='15min', as_df=True):
     
-    ts = epoch_to_dt(ts)
+    ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
+    
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
-    dr = pd.date_range(start=start_date, end=end_date, freq='5min', tz='utc', closed=None)
-    new_bars = []
+    dr = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
     
+    new_bars = []
     for i in list(range(len(dr)-2)):
         ticks = ts[(ts.date_time >= dr[i]) & (ts.date_time < dr[i+1])]
         _, state = build_bars(ts=ticks, thresh={})

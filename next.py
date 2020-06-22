@@ -58,3 +58,14 @@ if len(output_bars) > 0:
         last_bar_side = 0 
 
 import ipdb; ipdb.set_trace(context=10)
+
+def timeit(func):
+    from functools import wraps
+    from time import time
+    @wraps(func)
+    def newfunc(*args, **kwargs):
+        start = time()
+        func(*args, **kwargs)
+        diff = time() - start
+        print('function [{}] finished in {} ms'.format(func.__name__, int(diff * 1000)))
+    return newfunc

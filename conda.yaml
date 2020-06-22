@@ -1,27 +1,51 @@
-name: ticks
+name: backfill
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python = 3.8
+  - python = 3.7
   - nomkl
   - openblas
   - numpy
+  - numba
   - scipy
+  - scikit-learn
+  - pyarrow
+  - fastparquet
   - pandas
   - pandas_market_calendars
   - ipython
+  - jupyter
+  - jupyterlab
+  - bokeh
+  - black
   - requests
-  - trio_websocket
   - trio
+  - aiohttp
+  - wsaccel
   - dask
   - distributed
+  - joblib
   - python-blosc
   - cytoolz
   - lz4
+  - zstd
   - graphviz
   - prefect[viz]
+  - tenacity
   - google-cloud-storage
+  - google-cloud-pubsub
+  - fsspec
+  - gcsfs
   - pip
   - pip:
+    - trio_websocket
     - google-cloud-logging 
+    - google-cloud-scheduler 
+    - google-cloud-profiler
+    - pandas-bokeh
+    - pandas-market-calendars
+    - ray
+    - mlfinlab
+    - ppscore
+    - persist-queue[extra]

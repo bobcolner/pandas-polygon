@@ -8,7 +8,7 @@ from trio_websocket import open_websocket_url
 def run_stream_ticks(tickers='T.SPY, Q.SPY', file_name='data.txt'):
     run(stream_ticks, tickers, file_name)
 
-
+# https://www.willmcgugan.com/blog/tech/post/speeding-up-websockets-60x/
 async def stream_ticks(tickers="T.GLD, Q.GLD", output_fname='data.txt'):
     # connect to ws
     async with open_websocket_url('wss://alpaca.socket.polygon.io/stocks') as ws:
@@ -26,14 +26,14 @@ async def stream_ticks(tickers="T.GLD, Q.GLD", output_fname='data.txt'):
         while True:
             with open(output_fname, 'a') as out_file:
                 message = await ws.get_message()
-                # out_file.write(message + '\n')
+                out_file.write(str(time_ns()) + ' || ' + message + '\n')
                 ticks = json.loads(message)
-                for tick in ticks:
-                    if tick['ev'] not in ['T', 'Q']:
-                        continue
-                    tick['a'] = time_ns()
-                    tick_str = json.dumps(tick)
-                    out_file.write(tick_str + '\n')
+                # for tick in ticks:
+                #     if tick['ev'] not in ['T', 'Q']:
+                #         continue
+                #     tick['a'] = time_ns()
+                #     tick_str = json.dumps(tick)
+                #     out_file.write(tick_str + '\n')
 
 
 def read_ticks(file_name):
@@ -66,18 +66,18 @@ def read_ticks(file_name):
     return df
 
 
-# def parse_streaming_data(file_name):
-#     ticks = []
-#     quotes = []
-#     with open(file_name) as out_file:
-#         for line in out_file:
-#             line_data = json.loads(line)
-#             for item in line_data:
-#                 if item['ev'] == 'T':
-#                     ticks.append(item)
-#                 elif item['ev'] == 'Q':
-#                     quotes.append(item)
-#     return ticks, quotes
+def parse_streaming_data(file_name):
+    ticks = []
+    quotes = []
+    with open(file_name) as out_file:
+        for line in out_file:
+            line_data = json.loads(line)
+            for item in line_data:
+                if item['ev'] == 'T':
+                    ticks.append(item)
+                elif item['ev'] == 'Q':
+                    quotes.append(item)
+    return ticks, quotes
 
 
 # def quotes_to_dataframe(quotes):

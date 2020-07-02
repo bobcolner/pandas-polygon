@@ -240,7 +240,7 @@ def bar_thresh(state, last_bar_return=0):
             state['thresh']['renko_bull'], state['thresh']['renko_bear'] = get_next_renko_thresh(
                 thresh_renko=state['thresh']['renko'], 
                 last_return=last_bar_return
-                )
+            )
         except:
             state['thresh']['renko_bull'] = state['thresh']['renko']
             state['thresh']['renko_bear'] = -state['thresh']['renko']

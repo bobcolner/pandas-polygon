@@ -8,18 +8,6 @@ from pandas_market_calendars import get_calendar
 from polygon_rest_api import get_grouped_daily, get_stock_ticks
 
 
-def timeit(func):
-    from functools import wraps
-    from time import time
-    @wraps(func)
-    def newfunc(*args, **kwargs):
-        start = time()
-        func(*args, **kwargs)
-        diff = time() - start
-        print('function [{}] finished in {} ms'.format(func.__name__, int(diff * 1000)))
-    return newfunc
-
-
 def read_market_daily(result_path:str) -> pd.DataFrame:    
     df = read_matching_files(glob_string=result_path+'/market_daily/*.feather', reader=pd.read_feather)
     df = df.set_index(pd.to_datetime(df.date), drop=True)
@@ -173,13 +161,13 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partiti
         print('feather finished in', diff_ns)
 
 
-def validate_ticks(df):
+def validate_df(df):
     if df is None:
         raise ValueError('df is NoneType')
     if len(df) < 1:
-        raise ValueError('0 length trades df')
+        raise ValueError('0 length df')
     elif any(df.count() == 0):
-        raise ValueError('trades df missing fields. Recent historic data may not be ready for consumption')
+        raise ValueError('df has fields with no values. Recent historic data may not be ready for consumption')
     else:
         return df
 
@@ -200,8 +188,8 @@ def find_compleat_symbols(df:pd.DataFrame, active_days:int=1, compleat_only:bool
     return df_filtered
  
 
-def get_market_daily_df(date:str):
-    daily = get_grouped_daily(locale='us', market='stocks', date=date)
+def get_market_daily_df(daily):
+    
     if len(daily) < 1:
         raise ValueError('get_grouped_daily() returned zero rows')
 
@@ -212,7 +200,7 @@ def get_market_daily_df(date:str):
                             'c': 'close',
                             'h': 'high',
                             'l': 'low',
-                            'vw': 'vwap',
+                           'vw': 'vwap',
                             'n': 'count',
                             't': 'open_epoch'})
     # add columns
@@ -256,12 +244,7 @@ def get_ticks(symbol: str, date: str, tick_type:str):
     return ticks
 
 
-# from tenacity import retry, wait_exponential, stop_after_attempt
-# @retry(
-#     wait=wait_exponential(multiplier=1, min=1, max=100),
-#     stop=stop_after_attempt(10),
-# )
-def backfill_ticks(symbol, start_date, end_date, result_path, date_partition, tick_type, formats=['feather'], skip=False):
+def backfill_data(symbol, start_date, end_date, result_path, date_partition, tick_type, formats=['feather'], skip=False):
     
     req_dates = get_open_market_dates(start_date, end_date)
     print(len(req_dates), 'requested dates')
@@ -275,17 +258,51 @@ def backfill_ticks(symbol, start_date, end_date, result_path, date_partition, ti
     for date in req_dates:
         print(date)
         if symbol == 'market_daily':
-            df = get_market_daily_df(date)
+            daily = get_grouped_daily(locale='us', market='stocks', date=date)
+            df = get_market_daily_df(daily)
             full_result_path = result_path
 
         if tick_type == 'trades':
-            ticks = get_ticks(symbol, date, tick_type='trades')
-            df = trades_to_df(ticks)
+            trade_ticks = get_ticks(symbol, date, tick_type='trades')
+            df = trades_to_df(trade_ticks)
             full_result_path = result_path + '/ticks/trades'
         elif tick_type == 'quotes':
-            df = get_ticks(symbol, date, tick_type='quotes')
-            df = quotes_to_df(ticks)
+            quote_ticks = get_ticks(symbol, date, tick_type='quotes')
+            df = quotes_to_df(quote_ticks)
             full_result_path = result_path + '/ticks/quotes'
 
-        df = validate_ticks(df)
+        df = validate_df(df)
         save_df(df, symbol, date, full_result_path, date_partition, formats)
+
+
+def get_remaining_dates(symbol:str, start_date:str, end_date:str, result_path:str, date_partition:str):
+    
+    requested_dates = get_open_market_dates(start_date, end_date)
+    
+    existing_dates = dates_from_path(f"{result_path}/{symbol}", date_partition)
+    
+    if existing_dates is not None:
+        remaining_dates = find_remaining_dates(requested_dates, existing_dates)
+    
+    return requested_dates, existing_dates, remaining_dates
+
+
+def backfill_date(symbol, date, result_path, date_partition, tick_type, formats=['feather']):
+
+    if symbol == 'market_daily':
+        daily = get_grouped_daily(locale='us', market='stocks', date=date)
+        df = get_market_daily_df(daily)
+        full_result_path = result_path
+
+    if tick_type == 'trades':
+        trade_ticks = get_ticks(symbol, date, tick_type='trades')
+        df = trades_to_df(trade_ticks)
+        full_result_path = result_path + '/ticks/trades'
+    elif tick_type == 'quotes':
+        quote_ticks = get_ticks(symbol, date, tick_type='quotes')
+        df = quotes_to_df(quote_ticks)
+        full_result_path = result_path + '/ticks/quotes'
+
+    df = validate_df(df)
+    save_df(df, symbol, date, full_result_path, date_partition, formats)
+    return df

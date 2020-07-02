@@ -76,10 +76,11 @@ def get_all_tickers(start_page=1, end_page=None, stock_type='etp'):
     return all_tickers
 
 
-def get_ticker_details(symbol):
+def get_ticker_details(symbol:str):
     url = BASE_URL + f"/v1/meta/symbols/{symbol}/company?apiKey={API_KEY}"
     response = get(url)
-    return validate_response(response)
+    if response.status_code == 200:
+        return response.json()
 
 
 def get_market_status():

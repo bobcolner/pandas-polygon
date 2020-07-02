@@ -10,6 +10,10 @@ dependencies:
   - numba
   - scipy
   - scikit-learn
+  - statsmodels
+  - fastcluster
+  - pyclustering
+  - pingouin
   - pyarrow
   - fastparquet
   - pandas
@@ -17,26 +21,28 @@ dependencies:
   - ipython
   - jupyter
   - jupyterlab
+  - dask
+  - distributed
+  - modin
+  - joblib
+  - cachey
+  - tenacity
+  - cytoolz
+  - graphviz
   - bokeh
+  - seaborn
+  - prefect[viz, gcp]
   - black
   - requests
   - trio
   - aiohttp
   - wsaccel
-  - dask
-  - distributed
-  - joblib
-  - python-blosc
-  - cytoolz
-  - lz4
-  - zstd
-  - graphviz
-  - prefect[viz]
-  - tenacity
   - google-cloud-storage
   - google-cloud-pubsub
   - fsspec
   - gcsfs
+  - psutil
+  - tqdm
   - pip
   - pip:
     - trio_websocket
@@ -49,3 +55,13 @@ dependencies:
     - mlfinlab
     - ppscore
     - persist-queue[extra]
+    - dcor
+
+- python-blosc
+  - lz4
+  - zstd
+pip  
+  python-snappy
+  python-lzo
+  python-lz4
+  brotli

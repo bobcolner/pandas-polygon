@@ -1,10 +1,11 @@
+from os import environ
 from datetime import date
 from pathlib import Path
 from itertools import product
 from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.results import LocalResult, GCSResult, S3Result
 from prefect.engine.executors import DaskExecutor, LocalDaskExecutor, LocalExecutor
-from df_serializer import FeatherSerializer, ParquetSerializer
+from df_serializer_file import ParquetSerializer
 import pandas as pd
 from polygon_backfill import backfill_date_todf, get_open_market_dates
 
@@ -15,15 +16,14 @@ def cross_product_task(x, y) -> list:
 
 
 @task(checkpoint=False)
-def requested_dates_task(start_date, end_date):
+def requested_dates_task(start_date:str, end_date:str):
     requested_dates = get_open_market_dates(start_date, end_date)
-    print(requested_dates)
     return requested_dates
 
 
 @task(
     checkpoint=True, 
-    target="us_stocks/{tick_type}/symbol={symbol}/date={backfill_date}/data.feather"
+    target="{tick_type}/symbol={symbol}/date={backfill_date}/data.parquet"
 )
 def backfill_task(symbol:str, backfill_date:str, tick_type:str) -> pd.DataFrame:
     df = backfill_date_todf(symbol=symbol, date=backfill_date, tick_type=tick_type)
@@ -31,12 +31,12 @@ def backfill_task(symbol:str, backfill_date:str, tick_type:str) -> pd.DataFrame:
 
 
 result_store = S3Result(
-    serializer=FeatherSerializer(),
+    serializer=ParquetSerializer(),
     bucket='polygon-equities-data', 
     boto3_kwargs={
-        'aws_access_key_id':'000bc68c5651ba80000000001',
-        'aws_secret_access_key':'K000ClFsM+jVS18gf0332g7gNHRTWt8',
-        'endpoint_url':'https://s3.us-west-000.backblazeb2.com',
+        'aws_access_key_id': environ['B2_ACCESS_KEY_ID'],
+        'aws_secret_access_key': environ['B2_SECRET_ACCESS_KEY'],
+        'endpoint_url':  environ['B2_ENDPOINT_URL']
     },
 )
 # result_store = GCSResult(
@@ -49,8 +49,8 @@ result_store = S3Result(
 #     serializer=FeatherSerializer()
 # )
 
-symbols = ['SPY','GLUU','IHI','NVDA']
-dates = ['2020-06-22', '2020-07-01','2020-07-02']
+# symbols = ['SPY','GLUU','IHI','NVDA']
+# dates = ['2020-06-22', '2020-07-01','2020-07-02']
 
 with Flow(name='backfill-flow', result=result_store) as flow:
     
@@ -86,7 +86,7 @@ flow_state = flow.run(
     executor=executor, 
     symbol='SPY', 
     tick_type='trades',
-    start_date='2019-01-01', 
+    start_date='2020-01-01',
     end_date=date.today().isoformat(),
 )
 

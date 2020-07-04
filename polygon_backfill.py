@@ -278,5 +278,4 @@ def backfill_date_todf(symbol, date, tick_type):
         quote_ticks = get_ticks_date(symbol, date, tick_type)
         df = quotes_to_df(quote_ticks)
 
-    if df is not None:
-        return validate_df(df)
+    return validate_df(df)

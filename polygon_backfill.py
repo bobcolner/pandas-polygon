@@ -111,28 +111,23 @@ def find_remaining_dates(req_dates, existing_dates):
 def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partition:str, formats=['parquet', 'feather']):
 
     if date_partition == 'file_dates':
-        var = f"{symbol}/{date}"
+        partion_path = f"{symbol}/{date}"
     elif date_partition == 'dir_dates':
-        var = f"{symbol}/{date}/"
+        partion_path = f"{symbol}/{date}/"
     elif date_partition == 'hive':
-        var = f"symbol={symbol}/date={date}/"
+        partion_path = f"symbol={symbol}/date={date}/"
     
     if 'csv' in formats:
-        path = result_path + '/csv/' + var
+        path = result_path + '/csv/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
-        start_ns = time_ns()
         df.to_csv(
             path_or_buf=path+'data.csv',
             index=False,
         )
-        diff_ns = (time_ns() - start_ns) / 10**6 
-        print('csv finished in', diff_ns)
 
-    
     if 'parquet' in formats:
-        path = result_path + '/parquet/' + var
+        path = result_path + '/parquet/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
-        start_ns = time_ns()
         df.to_parquet(
             path=path+'data.parquet',
             engine='auto',
@@ -140,16 +135,11 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partiti
             index=False,
             partition_cols=None,
         )
-        diff_ns = (time_ns() - start_ns) / 10**6 
-        print('parquet finished in', diff_ns)
 
     if 'feather' in formats:
-        path = result_path + '/feather/' + var
+        path = result_path + '/feather/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
-        # from pyarrow import fs
-        # s3 = fs.S3FileSystem(region="us-east-2", creds=...)
         import pyarrow.feather as pf
-        start_ns = time_ns()
         pf.write_feather(
             df=df,
             dest=path+'data.feather',
@@ -157,8 +147,6 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partiti
             compression='zstd', # lz4, zstd
             compression_level=5,
         )
-        diff_ns = (time_ns() - start_ns) / 10**6 
-        print('feather finished in', diff_ns)
 
 
 def validate_df(df):
@@ -220,7 +208,7 @@ def get_market_daily_df(daily):
     return df
 
 
-def get_ticks(symbol: str, date: str, tick_type:str):
+def get_ticks_date(symbol: str, date: str, tick_type:str):
     last_tick = None
     limit = 50000
     ticks = []
@@ -229,6 +217,8 @@ def get_ticks(symbol: str, date: str, tick_type:str):
         # get batch of ticks
         ticks_batch = get_stock_ticks(symbol, date, tick_type, timestamp_first=last_tick, limit=limit)
         # update last_tick
+        if len(ticks_batch) < 1:  # empty tick batch
+            run = False
         last_tick = ticks_batch[-1]['t']
         # logging
         last_tick_time = pd.to_datetime(last_tick, utc=True, unit='ns').tz_convert('America/New_York')
@@ -244,7 +234,7 @@ def get_ticks(symbol: str, date: str, tick_type:str):
     return ticks
 
 
-def backfill_data(symbol, start_date, end_date, result_path, date_partition, tick_type, formats=['feather'], skip=False):
+def backfill_dates_tofile(symbol, start_date, end_date, result_path, date_partition, tick_type, formats=['feather'], skip=False):
     
     req_dates = get_open_market_dates(start_date, end_date)
     print(len(req_dates), 'requested dates')
@@ -263,11 +253,11 @@ def backfill_data(symbol, start_date, end_date, result_path, date_partition, tic
             full_result_path = result_path
 
         if tick_type == 'trades':
-            trade_ticks = get_ticks(symbol, date, tick_type='trades')
+            trade_ticks = get_ticks_date(symbol, date, tick_type='trades')
             df = trades_to_df(trade_ticks)
             full_result_path = result_path + '/ticks/trades'
         elif tick_type == 'quotes':
-            quote_ticks = get_ticks(symbol, date, tick_type='quotes')
+            quote_ticks = get_ticks_date(symbol, date, tick_type='quotes')
             df = quotes_to_df(quote_ticks)
             full_result_path = result_path + '/ticks/quotes'
 
@@ -275,34 +265,18 @@ def backfill_data(symbol, start_date, end_date, result_path, date_partition, tic
         save_df(df, symbol, date, full_result_path, date_partition, formats)
 
 
-def get_remaining_dates(symbol:str, start_date:str, end_date:str, result_path:str, date_partition:str):
-    
-    requested_dates = get_open_market_dates(start_date, end_date)
-    
-    existing_dates = dates_from_path(f"{result_path}/{symbol}", date_partition)
-    
-    if existing_dates is not None:
-        remaining_dates = find_remaining_dates(requested_dates, existing_dates)
-    
-    return requested_dates, existing_dates, remaining_dates
-
-
-def backfill_date(symbol, date, result_path, date_partition, tick_type, formats=['feather']):
+def backfill_date_todf(symbol, date, tick_type):
 
     if symbol == 'market_daily':
         daily = get_grouped_daily(locale='us', market='stocks', date=date)
         df = get_market_daily_df(daily)
-        full_result_path = result_path
 
     if tick_type == 'trades':
-        trade_ticks = get_ticks(symbol, date, tick_type='trades')
+        trade_ticks = get_ticks_date(symbol, date, tick_type)
         df = trades_to_df(trade_ticks)
-        full_result_path = result_path + '/ticks/trades'
     elif tick_type == 'quotes':
-        quote_ticks = get_ticks(symbol, date, tick_type='quotes')
+        quote_ticks = get_ticks_date(symbol, date, tick_type)
         df = quotes_to_df(quote_ticks)
-        full_result_path = result_path + '/ticks/quotes'
 
-    df = validate_df(df)
-    save_df(df, symbol, date, full_result_path, date_partition, formats)
-    return df
+    if df is not None:
+        return validate_df(df)

@@ -30,10 +30,12 @@ def reduce_list(dict_list:list) -> pd.DataFrame:
 # result_store = LocalResult(dir=Path(__file__).parent.absolute() / 'results', location=result_filename)
 result_store = LocalResult(dir='/Users/bobcolner/QuantClarity/tmp', location=result_filename)
 
-
 with Flow(name="symbol-details-flow", result=result_store) as flow:
+    
     details_list = symbol_details_task.map(symbol=npdf.columns)
+    
     details_df = reduce_list(details_list)
+
 
 # executor = LocalDaskExecutor(scheduler='processes')
 executor = DaskExecutor(

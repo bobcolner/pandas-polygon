@@ -89,20 +89,27 @@ def get_market_status():
     return validate_response(response)
 
 
-def get_stock_ticks(symbol: str, date: str, tick_type: str, timestamp_first=None, timestamp_limit=None, reverse=False, limit=50000):
+def get_stock_ticks(symbol: str, date: str, tick_type: str, timestamp_first=None, 
+    timestamp_limit=None, reverse=False, limit=50000) -> list:
+
     if tick_type == 'quotes':
         path = BASE_URL + f"/v2/ticks/stocks/nbbo/{symbol}/{date}"
     elif tick_type == 'trades':
         path = BASE_URL + f"/v2/ticks/stocks/trades/{symbol}/{date}"
+
     params = {}
     params['apiKey'] = API_KEY
     if timestamp_first is not None:
         params['timestamp'] = timestamp_first
+
     if timestamp_limit is not None:
         params['timestampLimit'] = timestamp_limit
+
     if reverse is not None:
         params['reverse'] = reverse
+
     if limit is not None:
         params['limit'] = limit
+
     response = get(path, params)
     return validate_response(response)

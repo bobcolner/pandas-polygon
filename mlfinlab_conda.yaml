@@ -1,4 +1,4 @@
-name: backfill
+name: mlfinlab
 channels:
   - conda-forge
   - defaults
@@ -9,24 +9,12 @@ dependencies:
   - numpy
   - scipy
   - scikit-learn
-  - statsmodels
-  - pyarrow >=1.0
-  - pandas >=1.1
-  - pandas_market_calendars
-  - ipython
+  - pandas
   - jupyterlab
-  - dask
-  - cachey
-  - graphviz
   - bokeh
-  - prefect[viz, gcp, aws]
-  - black
   - requests
-  - s3fs
-  - trio
   - tqdm
   - pip
   - pip:
-    - trio_websocket
     - pandas-bokeh
     - mlfinlab

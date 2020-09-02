@@ -6,3 +6,5 @@ bokeh_output.html
 *.feather
 *.parquet
 .Rhistory
+data/*
+dask-worker-space/*

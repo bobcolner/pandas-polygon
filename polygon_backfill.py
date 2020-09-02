@@ -3,9 +3,11 @@ from time import time_ns
 from glob import glob
 from pathlib import Path
 import datetime
+from tempfile import NamedTemporaryFile
 import pandas as pd
 from pandas_market_calendars import get_calendar
 from polygon_rest_api import get_grouped_daily, get_stock_ticks
+import s3fs
 
 
 def read_market_daily(result_path:str) -> pd.DataFrame:    
@@ -17,19 +19,21 @@ def read_market_daily(result_path:str) -> pd.DataFrame:
     return df
 
 
-def read_matching_files(glob_string, reader=pd.read_csv):
+def read_matching_files(glob_string:str, reader=pd.read_csv):
     return pd.concat(map(reader, glob(os.path.join('', glob_string))), ignore_index=True)
 
 
-def trades_to_df(ticks):
-    df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's'])
+def trades_to_df(ticks:list) -> pd.DataFrame:
+    df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z'])
     df = df.rename(columns={'p': 'price',
                             's': 'size',
                             'x': 'exchange_id',
                             't': 'sip_epoch',
                             'y': 'exchange_epoch',
                             'q': 'sequence',
-                            'i': 'trade_id'
+                            'i': 'trade_id',
+                            'c': 'condition',
+                            'z': 'tape'
                             })
     # optimize datatypes
     df['price'] = df['price'].astype('float32')
@@ -37,12 +41,13 @@ def trades_to_df(ticks):
     df['exchange_id'] = df['exchange_id'].astype('uint8')
     df['sequence'] = df['sequence'].astype('uint32')
     df['trade_id'] = df['trade_id'].astype('string')
+    df['tape'] = df['tape'].astype('uint8')
     # df['tick_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
     # df = df.sort_values(by=['sip_epoch', 'sequence'], ascending=True)
     return df
 
 
-def quotes_to_df(ticks):
+def quotes_to_df(ticks:list) -> pd.DataFrame:
     df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S'])
     df = df.rename(columns={'p': 'bid_price',
                             'P': 'ask_price',
@@ -57,26 +62,22 @@ def quotes_to_df(ticks):
     # optimze datatypes
     df['bid_price'] = df['bid_price'].astype('float32')
     df['ask_price'] = df['ask_price'].astype('float32')
-    
     df['bid_size'] = df['bid_size'].astype('uint32')
     df['ask_size'] = df['ask_size'].astype('uint32')
-    
     df['bid_exchange_id'] = df['bid_exchange_id'].astype('uint8')
     df['ask_exchange_id'] = df['ask_exchange_id'].astype('uint8')
-
     df['sequence'] = df['sequence'].astype('uint32')
-    
     return df
 
 
-def get_open_market_dates(start_date, end_date):
+def get_open_market_dates(start_date:str, end_date:str) -> list:
     market = get_calendar('NYSE')
     schedule = market.schedule(start_date=start_date, end_date=end_date)
     dates = [i.date().isoformat() for i in schedule.index]
     return dates
 
 
-def dates_from_path(dates_path, date_partition):
+def dates_from_path(dates_path:str, date_partition:str) -> list:
     if os.path.exists(dates_path):
         file_list = os.listdir(dates_path)
         if '.DS_Store' in file_list:
@@ -101,14 +102,15 @@ def dates_from_path(dates_path, date_partition):
         return existing_dates
 
 
-def find_remaining_dates(req_dates, existing_dates):
+def find_remaining_dates(req_dates:str, existing_dates:str) -> list:
     existing_dates_set = set(existing_dates)
     remaining_dates = [x for x in req_dates if x not in existing_dates_set]
     next_dates = [i for i in remaining_dates if i <= datetime.date.today().isoformat()]
     return next_dates
 
 
-def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partition:str, formats=['parquet', 'feather']):
+def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, 
+    date_partition:str, formats=['parquet', 'feather']) -> str:
 
     if date_partition == 'file_dates':
         partion_path = f"{symbol}/{date}"
@@ -124,7 +126,6 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partiti
             path_or_buf=path+'data.csv',
             index=False,
         )
-
     if 'parquet' in formats:
         path = result_path + '/parquet/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
@@ -135,18 +136,11 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, date_partiti
             index=False,
             partition_cols=None,
         )
-
     if 'feather' in formats:
         path = result_path + '/feather/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
-        import pyarrow.feather as pf
-        pf.write_feather(
-            df=df,
-            dest=path+'data.feather',
-            version=2,
-            compression='zstd', # lz4, zstd
-            compression_level=5,
-        )
+        df.to_feather(path+'data.feather', version=2)
+    return dir_path
 
 
 def validate_df(df):
@@ -176,7 +170,7 @@ def find_compleat_symbols(df:pd.DataFrame, active_days:int=1, compleat_only:bool
     return df_filtered
  
 
-def get_market_daily_df(daily):
+def get_market_daily_df(daily:list) -> pd.DataFrame:
     
     if len(daily) < 1:
         raise ValueError('get_grouped_daily() returned zero rows')
@@ -208,7 +202,7 @@ def get_market_daily_df(daily):
     return df
 
 
-def get_ticks_date(symbol: str, date: str, tick_type:str):
+def get_ticks_date(symbol: str, date: str, tick_type:str) -> list:
     last_tick = None
     limit = 50000
     ticks = []
@@ -230,11 +224,12 @@ def get_ticks_date(symbol: str, date: str, tick_type:str):
             run = False
         elif len(ticks_batch) == limit:
             del ticks[-1] # drop last row to avoid dups
-    
+
     return ticks
 
 
-def backfill_dates_tofile(symbol, start_date, end_date, result_path, date_partition, tick_type, formats=['feather'], skip=False):
+def backfill_dates_tofile(symbol:str, start_date:str, end_date:str, result_path:str, 
+    date_partition:str, tick_type:str, formats=['feather'], skip=False) -> str:
     
     req_dates = get_open_market_dates(start_date, end_date)
     print(len(req_dates), 'requested dates')
@@ -264,8 +259,10 @@ def backfill_dates_tofile(symbol, start_date, end_date, result_path, date_partit
         df = validate_df(df)
         save_df(df, symbol, date, full_result_path, date_partition, formats)
 
+    return full_result_path
 
-def backfill_date_todf(symbol, date, tick_type):
+
+def backfill_date_todf(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
 
     if symbol == 'market_daily':
         daily = get_grouped_daily(locale='us', market='stocks', date=date)
@@ -279,3 +276,24 @@ def backfill_date_todf(symbol, date, tick_type):
         df = quotes_to_df(quote_ticks)
 
     return validate_df(df)
+
+
+def backfill_date_tofile(symbol:str, date:str, tick_type:str, result_path:str) -> bool:
+    df = backfill_date_todf(symbol, date, tick_type)
+    dir_path = save_df(df, symbol, date, result_path+f"/{tick_type}", 
+        date_partition='hive', formats=['parquet','feather','csv'])
+    return True
+
+
+def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> bool:
+    df = backfill_date_todf(symbol, date, tick_type)
+    s3 = s3fs.S3FileSystem(
+        key=os.environ['B2_ACCESS_KEY_ID'], 
+        secret=os.environ['B2_SECRET_ACCESS_KEY'], 
+        client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+    )
+    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+        df.to_feather(path=tmp_ref1.name, version=2)
+        s3.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    
+    return True

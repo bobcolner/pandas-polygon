@@ -1,0 +1,57 @@
+name: backfill
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python = 3.7
+  - nomkl
+  - openblas
+  - numpy
+  - numba
+  - scipy
+  - scikit-learn
+  - statsmodels
+  - fastcluster
+  - pyclustering
+  - pingouin
+  - pyarrow >=1.0
+  - pandas >=1.1
+  - pandas_market_calendars
+  - ipython
+  - jupyterlab
+  - dask
+  - distributed
+  - modin
+  - swifter
+  - joblib
+  - cachey
+  - tenacity
+  - cytoolz
+  - graphviz
+  - bokeh
+  - seaborn
+  - prefect[viz, gcp]
+  - black
+  - requests
+  - trio
+  - aiohttp
+  - wsaccel
+  - google-cloud-storage
+  - google-cloud-pubsub
+  - fsspec
+  - gcsfs
+  - psutil
+  - tqdm
+  - pip
+  - pip:
+    - trio_websocket
+    - google-cloud-logging 
+    - google-cloud-scheduler 
+    - google-cloud-profiler
+    - pandas-bokeh
+    - pandas-market-calendars
+    - ray
+    - mlfinlab
+    - ppscore
+    - persist-queue[extra]
+    - dcor

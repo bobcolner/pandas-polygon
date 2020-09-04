@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 from time import time_ns
 from glob import glob
 from pathlib import Path
@@ -285,15 +286,63 @@ def backfill_date_tofile(symbol:str, date:str, tick_type:str, result_path:str) -
     return True
 
 
-def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> bool:
-    df = backfill_date_todf(symbol, date, tick_type)
-    s3 = s3fs.S3FileSystem(
+s3 = s3fs.S3FileSystem(
         key=os.environ['B2_ACCESS_KEY_ID'], 
         secret=os.environ['B2_SECRET_ACCESS_KEY'], 
         client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
     )
+
+def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> bool:
+    df = backfill_date_todf(symbol, date, tick_type)    
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
         s3.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
     
     return True
+
+
+s3 = s3fs.S3FileSystem(
+        key=os.environ['B2_ACCESS_KEY_ID'], 
+        secret=os.environ['B2_SECRET_ACCESS_KEY'], 
+        client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+    )
+
+def list_s3_symbol(symbol:str) -> str:
+    return s3.ls(f"polygon-equities/data/trades/symbol={symbol}/")
+
+    
+def get_s3_df(symbol:str, date:str, dt=True, columns=None) -> pd.DataFrame:
+    byte_data = s3.cat(f"polygon-equities/data/trades/symbol={symbol}/date={date}/data.feather")
+    df_bytes_io = BytesIO(byte_data)
+    df = pd.read_feather(df_bytes_io, columns=columns)
+    if dt:
+        df['date_time'] = pd.to_datetime(df.exchange_epoch)
+        df = df.drop(columns='exchange_epoch')
+    return df
+
+
+def condition_filter(condition_array, remove_condition=None, afterhours=False):
+    remove_condition = [2, 5, 7, 10, 12, 13, 15, 16, 17, 18, 19, 20, 22, 28, 29, 33, 38, 52, 53]
+    if afterhours is True:
+        remove_condition.pop(21)
+    if condition_array is not None:
+        filter_ticks = any(np.isin(condition_array, remove_condition))
+    else: 
+        filter_ticks = False
+    return filter_ticks
+
+
+def add_price_outlier(df, window_len):
+    med_smooth = df.price.rolling(window_len, center=True).median()
+    df['outlier_diff'] = abs(df.price - med_smooth)
+    df['outlier_pct'] = abs((1-(df.price / med_smooth)))*100
+    df['outlier_zs'] = (df['outlier_diff'] - df['outlier_diff'].mean()) / df['outlier_diff'].std(ddof=0)
+    return df
+
+
+def apply_condition_filter_medfilter(df, window_len=7):
+    bad_ticks = df.condition.apply(condition_filter)
+    clean_df = df[~bad_ticks].reset_index(drop=True)
+    clean_df = pb.add_price_outlier(clean_df, window_len)
+    return clean_df, bad_ticks
+    

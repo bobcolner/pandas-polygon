@@ -12,13 +12,12 @@ s3  = fs.S3FileSystem(
 )
 
 dataset = ds.dataset(
-    source='polygon-equities-data',
+    source='polygon-equities/data/trades',
     format='feather',
     filesystem=s3,
     partitioning='hive',
-    # partition_base_dir='feather',
+    exclude_invalid_files=True
 )
-
 
 df = dataset.to_table(
     # columns=['symbol', 'sip_epoch', 'price', 'size'],

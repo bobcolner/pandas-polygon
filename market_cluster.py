@@ -10,6 +10,7 @@ from polygon_rest_api import get_grouped_daily, get_stock_ticks, get_ticker_deta
 from polygon_backfill import *
 import bars
 
+
 def read_market_daily(result_path:str) -> pd.DataFrame:    
     df = read_matching_files(glob_string=result_path+'/market_daily/*.feather', reader=pd.read_feather)
     df = df.set_index(pd.to_datetime(df.date), drop=True)

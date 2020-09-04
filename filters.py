@@ -3,30 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def apply_fft(series, components=[3, 6, 9, 100]):
-    
-    close_fft = np.fft.fft(series)
-    fft_df = pd.DataFrame({'fft':close_fft})
-    fft_df['absolute'] = fft_df['fft'].apply(lambda x: np.abs(x))
-    fft_df['angle'] = fft_df['fft'].apply(lambda x: np.angle(x))
-
-    plt.figure(figsize=(14, 7), dpi=100)
-    fft_list = np.asarray(fft_df['fft'].tolist())
-
-    for num_ in components:
-        fft_list_m10 = np.copy(fft_list) 
-        fft_list_m10[num_:-num_] = 0
-        plt.plot(np.fft.ifft(fft_list_m10), label='Fourier transform with {} components'.format(num_))
-
-    plt.plot(series, label='Real')
-    plt.xlabel('Time')
-    plt.ylabel('USD')
-    plt.title('Stock trades & Fourier transforms')
-    plt.legend()
-    plt.show()
-
-
-def jma_filter(series_last, e0_last=0, e1_last=0, e2_last=0, jma_last=0, length=14, phase=50, power=2):
+def jma_filter(series_last:float, e0_last:float, e1_last:float, e2_last:float, jma_last:float, 
+    length=7, phase=50, power=2):
     if phase < -100:
         phase_ratio = 0.5
     elif phase > 100:
@@ -42,14 +20,14 @@ def jma_filter(series_last, e0_last=0, e1_last=0, e2_last=0, jma_last=0, length=
     return jma, e0, e1, e2, 
 
 
-def appy_jma_filter(series: np.array, length:int, phase:int, power:int):
+def appy_jma_filter(series, length:int, phase:int, power:int):
     jma = [series[0]]
     e0 = [0]
     e1 = [0]
     e2 = [0]
-    for price in series:
+    for value in series:
         jma_next, e0_next, e1_next, e2_next  = jma_filter(
-            series_last=price, e0_last=e0[-1], e1_last=e1[-1],
+            series_last=value, e0_last=e0[-1], e1_last=e1[-1],
             e2_last=e2[-1], jma_last=jma[-1], length=length,
             phase=phase, power=power
         )

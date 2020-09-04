@@ -45,3 +45,26 @@ cutree[:10]
 # after_hours = [12]
 # odd_lot = [37]
 # neutral = [41]
+
+
+def apply_fft(series, components=[3, 6, 9, 100]):
+    
+    close_fft = np.fft.fft(series)
+    fft_df = pd.DataFrame({'fft':close_fft})
+    fft_df['absolute'] = fft_df['fft'].apply(lambda x: np.abs(x))
+    fft_df['angle'] = fft_df['fft'].apply(lambda x: np.angle(x))
+
+    plt.figure(figsize=(14, 7), dpi=100)
+    fft_list = np.asarray(fft_df['fft'].tolist())
+
+    for num_ in components:
+        fft_list_m10 = np.copy(fft_list) 
+        fft_list_m10[num_:-num_] = 0
+        plt.plot(np.fft.ifft(fft_list_m10), label='Fourier transform with {} components'.format(num_))
+
+    plt.plot(series, label='Real')
+    plt.xlabel('Time')
+    plt.ylabel('USD')
+    plt.title('Stock trades & Fourier transforms')
+    plt.legend()
+    plt.show()

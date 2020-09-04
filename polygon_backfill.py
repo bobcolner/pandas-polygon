@@ -8,7 +8,6 @@ from tempfile import NamedTemporaryFile
 import pandas as pd
 from pandas_market_calendars import get_calendar
 from polygon_rest_api import get_grouped_daily, get_stock_ticks
-import s3fs
 
 
 def read_market_daily(result_path:str) -> pd.DataFrame:    
@@ -24,50 +23,49 @@ def read_matching_files(glob_string:str, reader=pd.read_csv):
     return pd.concat(map(reader, glob(os.path.join('', glob_string))), ignore_index=True)
 
 
-def trades_to_df(ticks:list) -> pd.DataFrame:
-    df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z'])
-    df = df.rename(columns={'p': 'price',
-                            's': 'size',
-                            'x': 'exchange_id',
-                            't': 'sip_epoch',
-                            'y': 'exchange_epoch',
-                            'q': 'sequence',
-                            'i': 'trade_id',
-                            'c': 'condition',
-                            'z': 'tape'
-                            })
-    # optimize datatypes
-    df['price'] = df['price'].astype('float32')
-    df['size'] = df['size'].astype('uint32')
-    df['exchange_id'] = df['exchange_id'].astype('uint8')
-    df['sequence'] = df['sequence'].astype('uint32')
-    df['trade_id'] = df['trade_id'].astype('string')
-    df['tape'] = df['tape'].astype('uint8')
-    # df['tick_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
-    # df = df.sort_values(by=['sip_epoch', 'sequence'], ascending=True)
-    return df
+def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
+    if tick_type == 'trades':
+        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z'])
+        df = df.rename(columns={'p': 'price',
+                                's': 'size',
+                                'x': 'exchange_id',
+                                't': 'sip_epoch',
+                                'y': 'exchange_epoch',
+                                'q': 'sequence',
+                                'i': 'trade_id',
+                                'c': 'condition',
+                                'z': 'tape'
+                                })
+        # optimize datatypes
+        df['price'] = df['price'].astype('float32')
+        df['size'] = df['size'].astype('uint32')
+        df['exchange_id'] = df['exchange_id'].astype('uint8')
+        df['sequence'] = df['sequence'].astype('uint32')
+        df['trade_id'] = df['trade_id'].astype('string')
+        df['tape'] = df['tape'].astype('uint8')
+        # df['tick_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
+        # df = df.sort_values(by=['sip_epoch', 'sequence'], ascending=True)
 
-
-def quotes_to_df(ticks:list) -> pd.DataFrame:
-    df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S'])
-    df = df.rename(columns={'p': 'bid_price',
-                            'P': 'ask_price',
-                            's': 'bid_size',
-                            'S': 'ask_size',
-                            'x': 'bid_exchange_id',
-                            'X': 'ask_exchange_id',
-                            't': 'sip_epoch',
-                            'y': 'exchange_epoch',
-                            'q': 'sequence'
-                            })
-    # optimze datatypes
-    df['bid_price'] = df['bid_price'].astype('float32')
-    df['ask_price'] = df['ask_price'].astype('float32')
-    df['bid_size'] = df['bid_size'].astype('uint32')
-    df['ask_size'] = df['ask_size'].astype('uint32')
-    df['bid_exchange_id'] = df['bid_exchange_id'].astype('uint8')
-    df['ask_exchange_id'] = df['ask_exchange_id'].astype('uint8')
-    df['sequence'] = df['sequence'].astype('uint32')
+    elif tick_type == 'quotes':
+        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S'])
+        df = df.rename(columns={'p': 'bid_price',
+                                'P': 'ask_price',
+                                's': 'bid_size',
+                                'S': 'ask_size',
+                                'x': 'bid_exchange_id',
+                                'X': 'ask_exchange_id',
+                                't': 'sip_epoch',
+                                'y': 'exchange_epoch',
+                                'q': 'sequence'
+                                })
+        # optimze datatypes
+        df['bid_price'] = df['bid_price'].astype('float32')
+        df['ask_price'] = df['ask_price'].astype('float32')
+        df['bid_size'] = df['bid_size'].astype('uint32')
+        df['ask_size'] = df['ask_size'].astype('uint32')
+        df['bid_exchange_id'] = df['bid_exchange_id'].astype('uint8')
+        df['ask_exchange_id'] = df['ask_exchange_id'].astype('uint8')
+        df['sequence'] = df['sequence'].astype('uint32')
     return df
 
 
@@ -247,102 +245,27 @@ def backfill_dates_tofile(symbol:str, start_date:str, end_date:str, result_path:
             daily = get_grouped_daily(locale='us', market='stocks', date=date)
             df = get_market_daily_df(daily)
             full_result_path = result_path
-
-        if tick_type == 'trades':
-            trade_ticks = get_ticks_date(symbol, date, tick_type='trades')
-            df = trades_to_df(trade_ticks)
-            full_result_path = result_path + '/ticks/trades'
-        elif tick_type == 'quotes':
-            quote_ticks = get_ticks_date(symbol, date, tick_type='quotes')
-            df = quotes_to_df(quote_ticks)
-            full_result_path = result_path + '/ticks/quotes'
-
+        # backfill_date_tofile(symbol, date:str, tick_type, result_path)
+        ticks = get_ticks_date(symbol, date, tick_type)
+        df = ticks_to_df(ticks, tick_type)
+        full_result_path = result_path + f"/ticks/{tick_type}"
         df = validate_df(df)
         save_df(df, symbol, date, full_result_path, date_partition, formats)
-
     return full_result_path
 
 
 def backfill_date_todf(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
-
     if symbol == 'market_daily':
         daily = get_grouped_daily(locale='us', market='stocks', date=date)
         df = get_market_daily_df(daily)
-
-    if tick_type == 'trades':
-        trade_ticks = get_ticks_date(symbol, date, tick_type)
-        df = trades_to_df(trade_ticks)
-    elif tick_type == 'quotes':
-        quote_ticks = get_ticks_date(symbol, date, tick_type)
-        df = quotes_to_df(quote_ticks)
-
+    else:
+        ticks = get_ticks_date(symbol, date, tick_type)
+        df = ticks_to_df(ticks, tick_type)    
     return validate_df(df)
 
 
 def backfill_date_tofile(symbol:str, date:str, tick_type:str, result_path:str) -> bool:
     df = backfill_date_todf(symbol, date, tick_type)
-    dir_path = save_df(df, symbol, date, result_path+f"/{tick_type}", 
+    dir_path = save_df(df, symbol, date, result_path+f"/{tick_type}",
         date_partition='hive', formats=['parquet','feather','csv'])
     return True
-
-
-s3 = s3fs.S3FileSystem(
-        key=os.environ['B2_ACCESS_KEY_ID'], 
-        secret=os.environ['B2_SECRET_ACCESS_KEY'], 
-        client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
-    )
-
-def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> bool:
-    df = backfill_date_todf(symbol, date, tick_type)    
-    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
-        df.to_feather(path=tmp_ref1.name, version=2)
-        s3.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
-    
-    return True
-
-
-s3 = s3fs.S3FileSystem(
-        key=os.environ['B2_ACCESS_KEY_ID'], 
-        secret=os.environ['B2_SECRET_ACCESS_KEY'], 
-        client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
-    )
-
-def list_s3_symbol(symbol:str) -> str:
-    return s3.ls(f"polygon-equities/data/trades/symbol={symbol}/")
-
-    
-def get_s3_df(symbol:str, date:str, dt=True, columns=None) -> pd.DataFrame:
-    byte_data = s3.cat(f"polygon-equities/data/trades/symbol={symbol}/date={date}/data.feather")
-    df_bytes_io = BytesIO(byte_data)
-    df = pd.read_feather(df_bytes_io, columns=columns)
-    if dt:
-        df['date_time'] = pd.to_datetime(df.exchange_epoch)
-        df = df.drop(columns='exchange_epoch')
-    return df
-
-
-def condition_filter(condition_array, remove_condition=None, afterhours=False):
-    remove_condition = [2, 5, 7, 10, 12, 13, 15, 16, 17, 18, 19, 20, 22, 28, 29, 33, 38, 52, 53]
-    if afterhours is True:
-        remove_condition.pop(21)
-    if condition_array is not None:
-        filter_ticks = any(np.isin(condition_array, remove_condition))
-    else: 
-        filter_ticks = False
-    return filter_ticks
-
-
-def add_price_outlier(df, window_len):
-    med_smooth = df.price.rolling(window_len, center=True).median()
-    df['outlier_diff'] = abs(df.price - med_smooth)
-    df['outlier_pct'] = abs((1-(df.price / med_smooth)))*100
-    df['outlier_zs'] = (df['outlier_diff'] - df['outlier_diff'].mean()) / df['outlier_diff'].std(ddof=0)
-    return df
-
-
-def apply_condition_filter_medfilter(df, window_len=7):
-    bad_ticks = df.condition.apply(condition_filter)
-    clean_df = df[~bad_ticks].reset_index(drop=True)
-    clean_df = pb.add_price_outlier(clean_df, window_len)
-    return clean_df, bad_ticks
-    

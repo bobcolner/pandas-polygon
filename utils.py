@@ -68,3 +68,22 @@ def apply_fft(series, components=[3, 6, 9, 100]):
     plt.title('Stock trades & Fourier transforms')
     plt.legend()
     plt.show()
+
+def apply_condtion_filter(df, keep_afterhours):
+    keep_afterhours=True
+    conditions_idx=[]
+    afterhours_idx=[]
+    for row in df.itertuples():
+        filter_conditions = [2, 5, 6, 7, 10, 13, 15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 29, 
+            32, 33, 35, 38, 39, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57]
+        if keep_afterhours is False:
+            filter_conditions.remove(12)
+        if row.condition is not None:
+            condition_bool = any(np.isin(row.condition, np.array(filter_conditions)))
+            afterhours_bool = any(np.isin(row.condition, 12))
+        else: 
+            condition_bool = False
+            afterhours_bool = False
+        conditions_idx.append(condition_bool)
+        afterhours_idx.append(afterhours_bool)
+    return pd.Series(conditions_idx), pd.Series(afterhours_idx)

@@ -5,8 +5,14 @@ from polygon_rest_api import get_grouped_daily
 import polygon_backfill as pb
 
 
+def backfill_date_tofile(symbol:str, date:str, tick_type:str, result_path:str):
+    df = pb.backfill_date_todf(symbol, date, tick_type)
+    dir_path = save_df(df, symbol, date, result_path+f"/{tick_type}",
+        date_partition='hive', formats=['feather'])
+
+
 def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str, 
-    date_partition:str, formats=['parquet', 'feather']) -> str:
+    date_partition:str, formats=['parquet', 'feather']):
 
     if date_partition == 'file_dates':
         partion_path = f"{symbol}/{date}"
@@ -36,14 +42,6 @@ def save_df(df:pd.DataFrame, symbol:str, date:str, result_path:str,
         path = result_path + '/feather/' + partion_path
         Path(path).mkdir(parents=True, exist_ok=True)
         df.to_feather(path+'data.feather', version=2)
-    return dir_path
-
-
-def backfill_date_tofile(symbol:str, date:str, tick_type:str, result_path:str) -> bool:
-    df = pb.backfill_date_todf(symbol, date, tick_type)
-    dir_path = save_df(df, symbol, date, result_path+f"/{tick_type}",
-        date_partition='hive', formats=['feather'])
-    return True
 
 
 def dates_from_path(dates_path:str, date_partition:str) -> list:
@@ -96,10 +94,11 @@ def backfill_dates_tofile(symbol:str, start_date:str, end_date:str, result_path:
             daily = get_grouped_daily(locale='us', market='stocks', date=date)
             df = pb.get_market_daily_df(daily)
             full_result_path = result_path
-        # backfill_date_tofile(symbol, date:str, tick_type, result_path)
-        ticks = pb.get_ticks_date(symbol, date, tick_type)
-        df = pb.ticks_to_df(ticks, tick_type)
-        full_result_path = result_path + f"/ticks/{tick_type}"
-        df = pb.validate_df(df)
-        save_df(df, symbol, date, full_result_path, date_partition, formats)
-    return full_result_path
+        else:
+            # backfill_date_tofile(symbol, date:str, tick_type, result_path)
+            ticks = pb.get_ticks_date(symbol, date, tick_type)
+            df = pb.ticks_to_df(ticks, tick_type)
+            full_result_path = result_path + f"/ticks/{tick_type}"
+            df = pb.validate_df(df)
+            save_df(df, symbol, date, full_result_path, date_partition, formats)
+

@@ -5,15 +5,13 @@ import scipy.stats as stats
 import numpy as np
 import pandas as pd
 
-
-def get_outliers(ts,  multiple=6):
-    ts['price_pct_change'] = ts['price'].pct_change() * 100
-    toss_thresh = ts['price_pct_change'].std() * multiple
-    outliers_idx = ts['price_pct_change'].abs() > toss_thresh
-    # ts['outliers_idx'] = outliers_idx
-    # return ts[-outliers_idx]
-    return outliers_idx
-
+# tick data-type (list[dict])
+# ts[] = {
+#     'epoch',
+#     ?'date_time',
+#     'price',
+#     'volume'
+# }
 
 def trunc_timestamp(ts, trunc_list=None, add_date_time=False):
     if add_date_time:
@@ -228,7 +226,7 @@ def bar_thresh(state, last_bar_return=0):
     if 'tick_imbalance' in state['thresh'] and abs(state['tick_imbalance']) >= state['thresh']['tick_imbalance']:
         state['bar_trigger_state'] = 'tick_imbalance'
     if 'volume_imbalance' in state['thresh'] and abs(state['volume_imbalance']) >= state['thresh']['volume_imbalance']:
-        state['bar_trigger_state'] = 'volumne_imbalance'        
+        state['bar_trigger_state'] = 'volume_imbalance'        
     if 'dollar_imbalance' in state['thresh'] and abs(state['dollar_imbalance']) >= state['thresh']['dollar_imbalance']:
         state['bar_trigger_state'] = 'dollar_imbalence'
     if 'price_range' in state['thresh'] and state['price_range'] >= state['thresh']['price_range']:
@@ -335,8 +333,6 @@ def update_bar(tick, output_bars, state, thresh={}, outliner_pct_change = 0.002)
     state = bar_thresh(state, last_bar_return=last_bar_side)
 
     if state['bar_trigger_state'] != 'waiting':
-        # print('new bar: ', state['bar_trigger_state'])
-        # save new bar
         new_bar = save_bar(state)
         output_bars.append(new_bar)
         # reset counter vars
@@ -346,7 +342,6 @@ def update_bar(tick, output_bars, state, thresh={}, outliner_pct_change = 0.002)
 
 
 def build_bars(ts, thresh={}, as_df=True):
-    
     state = reset_state(thresh)
     output_bars = []
     nrow = 0
@@ -360,28 +355,26 @@ def build_bars(ts, thresh={}, as_df=True):
         nrow += 1
 
     if as_df:
-        output_bars = pd.DataFrame(output_bars)
-        output_bars = output_bars.set_index('close_at')
+        output_bars = pd.DataFrame(output_bars).set_index('close_at', drop=True)
 
     return output_bars, state
 
 
 def time_bars(ts, date, freq='15min', as_df=True):
-    
     ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
-    
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
     dr = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
-    
     new_bars = []
     for i in list(range(len(dr)-2)):
         ticks = ts[(ts.date_time >= dr[i]) & (ts.date_time < dr[i+1])]
         _, state = build_bars(ts=ticks, thresh={})
         bar = save_bar(state)
-        bar['time_open'] = dr[i]
-        bar['time_close'] = dr[i+1]
+        bar['open_at'] = dr[i]
+        bar['close_at'] = dr[i+1]
         new_bars.append(bar)
 
-    new_bars = pd.DataFrame(new_bars) if as_df is True else new_bars
+    if as_df:
+        new_bars = pd.DataFrame(new_bars).set_index('close_at', drop=True)
+
     return new_bars

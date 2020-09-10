@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from pandas_market_calendars import get_calendar
 from polygon_rest_api import get_grouped_daily, get_stock_ticks
-import filters as ft
 
 
 def read_market_daily(result_path:str) -> pd.DataFrame:    
@@ -96,11 +95,13 @@ def add_cond_filter(ticks):
             ticks[idx]['irregular'] = any(np.isin(tick['c'], irregular_conditions))
             ticks[idx]['blank'] = any(np.isin(tick['c'], blank_conditions))
             ticks[idx]['afterhours'] = any(np.isin(tick['c'], 12))
+            ticks[idx]['odd_lot'] = any(np.isin(tick['c'], 37))
         else:
             ticks[idx]['green'] = False
             ticks[idx]['irregular'] = False
             ticks[idx]['blank'] = True
             ticks[idx]['afterhours'] = False
+            ticks[idx]['odd_lot'] = False
     return ticks
 
 
@@ -134,12 +135,13 @@ def get_ticks_date(symbol: str, date: str, tick_type:str) -> list:
 
 def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
     if tick_type == 'trades':
-        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z', 'green', 'irregular', 'blank', 'afterhours'])
+        df = pd.DataFrame(ticks, columns=['t', 'y', 'f', 'q', 'i', 'x', 'p', 's', 'c', 'z', 'green', 'irregular', 'blank', 'afterhours'])
         df = df.rename(columns={'p': 'price',
                                 's': 'size',
                                 'x': 'exchange_id',
                                 't': 'sip_epoch',
                                 'y': 'exchange_epoch',
+                                'f': 'trf_epoch',
                                 'q': 'sequence',
                                 'i': 'trade_id',
                                 'c': 'condition',
@@ -149,21 +151,14 @@ def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
         df['price'] = df['price'].astype('float32')
         df['size'] = df['size'].astype('uint32')
         df['exchange_id'] = df['exchange_id'].astype('uint8')
-        df['sequence'] = df['sequence'].astype('uint32')
         df['trade_id'] = df['trade_id'].astype('string')
         df['green'] = df['green'].astype('bool')
         df['irregular'] = df['irregular'].astype('bool')
         df['blank'] = df['blank'].astype('bool')
         df['afterhours'] = df['afterhours'].astype('bool')
-        df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], utc=True, unit='ns')
-        df['sip_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
-        # drop columns
-        df = df.drop(columns='tape')
-        df = df.drop(columns='exchange_epoch')
-        df = df.drop(columns='sip_epoch')
 
     elif tick_type == 'quotes':
-        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S'])
+        df = pd.DataFrame(ticks, columns=['t', 'y', 'f', 'q', 'x', 'X', 'p', 'P', 's', 'S', 'z'])
         df = df.rename(columns={'p': 'bid_price',
                                 'P': 'ask_price',
                                 's': 'bid_size',
@@ -172,7 +167,9 @@ def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
                                 'X': 'ask_exchange_id',
                                 't': 'sip_epoch',
                                 'y': 'exchange_epoch',
-                                'q': 'sequence'
+                                'f': 'trf_epoch',
+                                'q': 'sequence',
+                                'z': 'tape'
                                 })
         # optimze datatypes
         df['bid_price'] = df['bid_price'].astype('float32')
@@ -181,11 +178,17 @@ def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
         df['ask_size'] = df['ask_size'].astype('uint32')
         df['bid_exchange_id'] = df['bid_exchange_id'].astype('uint8')
         df['ask_exchange_id'] = df['ask_exchange_id'].astype('uint8')
-        df['sequence'] = df['sequence'].astype('uint32')
-        df['date_time'] = pd.to_datetime(df['exchange_epoch'], utc=True, unit='ns')
-        # drop 
-        df = df.drop(columns='exchange_epoch')
-
+    
+    # cast datetimes    
+    df['sequence'] = df['sequence'].astype('uint32')
+    df['sip_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
+    df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], utc=True, unit='ns')
+    df['trf_dt'] = pd.to_datetime(df['trf_epoch'], utc=True, unit='ns')
+    # drop columns
+    df = df.drop(columns='tape')
+    df = df.drop(columns='sip_epoch')
+    df = df.drop(columns='exchange_epoch')
+    df = df.drop(columns='trf_epoch')
     return df
 
 

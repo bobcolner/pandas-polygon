@@ -4,8 +4,9 @@ channels:
   - defaults
 dependencies:
   - python = 3.7
-  - nomkl
-  - openblas
+  - mkl
+  - numba
+  - numexpr
   - numpy
   - scipy
   - scikit-learn
@@ -20,7 +21,6 @@ dependencies:
   - graphviz
   - bokeh
   - prefect[viz, gcp, aws]
-  - black
   - requests
   - s3fs
   - trio
@@ -29,4 +29,3 @@ dependencies:
   - pip:
     - trio_websocket
     - pandas-bokeh
-    - mlfinlab

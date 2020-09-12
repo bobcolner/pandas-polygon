@@ -1,3 +1,6 @@
+import scipy.stats as stats
+
+
 def compound_interest(principle:float, rate:float, peroids:int): 
     # Calculates compound interest  
     total_return = principle * (pow((1 + rate / 100), peroids)) 
@@ -87,3 +90,103 @@ def apply_condtion_filter(df, keep_afterhours):
         conditions_idx.append(condition_bool)
         afterhours_idx.append(afterhours_bool)
     return pd.Series(conditions_idx), pd.Series(afterhours_idx)
+
+
+def weighted_kernel_density_1d(values, weights, bw='silverman', plot=False):
+    from statsmodels.nonparametric.kde import KDEUnivariate
+    kden= KDEUnivariate(values)
+    kden.fit(weights=weights, bw=bw, fft=False)
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.plot(kden.support, [kden.evaluate(xi) for xi in kden.support], 'o-')
+    return kden
+
+
+def quantile_from_kdensity(kden, quantile=0.5):
+    return kden.support[kde1.cdf >= quantile][0]
+
+
+def wkde1d(state, new_bar):
+    
+    try:
+        wkde = weighted_kernel_density_1d(
+                values=np.array(state['trades']['price']), 
+                weights=np.array(state['trades']['volume'])
+                )
+        # new_bar['wkde'] = wkde
+        new_bar['kd_10'] = quantile_from_kdensity(new_bar['kden'], quantile=0.1)
+        new_bar['kd_50'] = quantile_from_kdensity(new_bar['kden'], quantile=0.5)
+        new_bar['kd_90'] = quantile_from_kdensity(new_bar['kden'], quantile=0.9)
+    except:
+        new_bar['wkde'] = None
+        new_bar['kd_10'] = None
+        new_bar['kd_50'] = None
+        new_bar['kd_90'] = None
+
+    return new_bar
+
+
+
+def rolling_decay_vwap(ts, window_len=7, decay='none'):
+    nrows = list(range(len(ts)))
+    vwap = []
+    for nrow in nrows:
+        if nrow >= window_len:
+            price = ts['price'][nrow - window_len:nrow].values
+            volume = ts['volume'][nrow - window_len:nrow].values
+            if decay == 'exp':
+                exp_decay = stats.expon.pdf(x=list(range(0, window_len)))
+                weight = volume * exp_decay
+            if decay == 'linear':
+                linear_decay = np.array(range(1, window_len+1)) / window_len
+                weight = volume * linear_decay
+            if decay == 'none':
+                weight = volume
+            tmp = (price * weight).sum() / weight.sum()
+            vwap.append(tmp)
+        else:
+            vwap.append(None)
+    return vwap
+
+
+def trunc_timestamp(ts, trunc_list=None, add_date_time=False):
+    if add_date_time:
+        ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
+    if 'micro' in trunc_list:
+        ts['epoch_micro'] = ts['epoch'].floordiv(10 ** 3)
+    if 'ms' in trunc_list:
+        ts['epoch_ms'] = ts['epoch'].floordiv(10 ** 6)
+        if  add_date_time:
+            ts['date_time_ms'] = ts['date_time'].values.astype('<M8[ms]')
+    if 'cs' in trunc_list:
+        ts['epoch_cs'] = ts['epoch'].floordiv(10 ** 7)
+    if 'ds' in trunc_list:
+        ts['epoch_ds'] = ts['epoch'].floordiv(10 ** 8)
+    if 'sec' in trunc_list:
+        ts['epoch_sec'] = ts['epoch'].floordiv(10 ** 9)
+        if add_date_time:
+            ts['date_time_sec'] = ts['date_time'].values.astype('<M8[s]')
+    if 'min' in trunc_list:
+        ts['epoch_min'] = ts['epoch'].floordiv((10 ** 9) * 60)
+        if add_date_time:
+            ts['date_time_min'] = ts['date_time'].values.astype('<M8[m]')
+    if 'min5' in trunc_list:
+        ts['epoch_min5'] = ts['epoch'].floordiv((10 ** 9) * 60 * 5)
+    if 'min10' in trunc_list:
+        ts['epoch_min10'] = ts['epoch'].floordiv((10 ** 9) * 60 * 10)
+    if 'min15' in trunc_list:
+        ts['epoch_min15'] = ts['epoch'].floordiv((10 ** 9) * 60 * 15)
+    if 'min30' in trunc_list:
+        ts['epoch_min30'] = ts['epoch'].floordiv((10 ** 9) * 60 * 30)
+    if 'hour' in trunc_list:
+        ts['epoch_hour'] = ts['epoch'].floordiv((10 ** 9) * 60 * 60)
+        if add_date_time:
+            ts['date_time_hour'] = ts['date_time'].values.astype('<M8[h]')
+    return ts
+
+
+def ts_groupby(df, column='epoch_cs'):
+    groups = df.groupby(column, as_index=False, squeeze=True).agg({'price': ['count', 'mean'], 'volume':'sum'})
+    groups.columns = ['_'.join(tup).rstrip('_') for tup in groups.columns.values]
+    return groups
+

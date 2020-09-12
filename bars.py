@@ -1,81 +1,7 @@
 import os
 import datetime
-import requests
-import scipy.stats as stats
 import numpy as np
 import pandas as pd
-
-# tick data-type (list[dict])
-# ts[] = {
-#     'epoch',
-#     ?'date_time',
-#     'price',
-#     'volume'
-# }
-
-def trunc_timestamp(ts, trunc_list=None, add_date_time=False):
-    if add_date_time:
-        ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
-    # ts['epoch_ns'] = ts.epoch.floordiv(10 ** 1)
-    if 'micro' in trunc_list:
-        ts['epoch_micro'] = ts['epoch'].floordiv(10 ** 3)
-    if 'ms' in trunc_list:
-        ts['epoch_ms'] = ts['epoch'].floordiv(10 ** 6)
-        if  add_date_time:
-            ts['date_time_ms'] = ts['date_time'].values.astype('<M8[ms]')
-    if 'cs' in trunc_list:
-        ts['epoch_cs'] = ts['epoch'].floordiv(10 ** 7)
-    if 'ds' in trunc_list:
-        ts['epoch_ds'] = ts['epoch'].floordiv(10 ** 8)
-    if 'sec' in trunc_list:
-        ts['epoch_sec'] = ts['epoch'].floordiv(10 ** 9)
-        if add_date_time:
-            ts['date_time_sec'] = ts['date_time'].values.astype('<M8[s]')
-    if 'min' in trunc_list:
-        ts['epoch_min'] = ts['epoch'].floordiv((10 ** 9) * 60)
-        if add_date_time:
-            ts['date_time_min'] = ts['date_time'].values.astype('<M8[m]')
-    if 'min10' in trunc_list:
-        ts['epoch_min10'] = ts['epoch'].floordiv((10 ** 9) * 60 * 10)
-    if 'min15' in trunc_list:
-        ts['epoch_min15'] = ts['epoch'].floordiv((10 ** 9) * 60 * 15)
-    if 'min30' in trunc_list:
-        ts['epoch_min30'] = ts['epoch'].floordiv((10 ** 9) * 60 * 30)
-    if 'hour' in trunc_list:
-        ts['epoch_hour'] = ts['epoch'].floordiv((10 ** 9) * 60 * 60)
-        if add_date_time:
-            ts['date_time_hour'] = ts['date_time'].values.astype('<M8[h]')
-
-    return ts
-
-
-def ts_groupby(df, column='epoch_cs'):
-    ts = df.copy()
-    groups = ts.groupby(column, as_index=False, squeeze=True, ).agg({'price': ['count', 'mean'], 'volume':'sum'})
-    groups.columns = ['_'.join(tup).rstrip('_') for tup in groups.columns.values]
-    return groups
-
-
-def rolling_decay_vwap(ts, window_len=7, decay='none'):
-    nrows = list(range(len(ts)))
-    vwap = []
-    for nrow in nrows:
-        if nrow >= window_len:
-            price = ts['price'][nrow - window_len:nrow].values
-            volume = ts['volume'][nrow - window_len:nrow].values
-            if decay == 'exp':
-                exp_decay = stats.expon.pdf(x=list(range(0, window_len)))
-                weight = volume * exp_decay
-            if decay == 'linear':
-                linear_decay = np.array(range(1, window_len+1)) / window_len
-                weight = volume * linear_decay
-            if decay == 'none':
-                weight = volume
-            tmp = (price * weight).sum() / weight.sum()
-            vwap.append(tmp)
-        else:
-            vwap.append(None)
-    return vwap
 
 
 def tick_rule(first_price, second_price, last_side=0):
@@ -94,16 +20,6 @@ def tick_rule(first_price, second_price, last_side=0):
     return side
 
 
-def get_next_renko_thresh(thresh_renko, last_return):
-    if last_return >= 0:
-        thresh_renko_bull = thresh_renko
-        thresh_renko_bear = -thresh_renko * 2
-    elif last_return < 0:
-        thresh_renko_bull = thresh_renko * 2
-        thresh_renko_bear = -thresh_renko
-    return thresh_renko_bull, thresh_renko_bear
-
-
 def reset_state(thresh={}):
     state = {}    
     state['thresh'] = thresh
@@ -115,8 +31,6 @@ def reset_state(thresh={}):
     state['price_max'] = 0
     state['price_range'] = 0
     state['bar_return'] = 0
-    state['tick_diff'] = 0
-    state['tick_pct_change'] = 0
     state['tick_count'] = 0
     state['volume_sum'] = 0
     state['dollar_sum'] = 0
@@ -143,41 +57,7 @@ def reset_state(thresh={}):
     return state
 
 
-def weighted_kernel_density_1d(values, weights, bw='silverman', plot=False):
-    from statsmodels.nonparametric.kde import KDEUnivariate
-    kden= KDEUnivariate(values)
-    kden.fit(weights=weights, bw=bw, fft=False)
-    if plot:
-        import matplotlib.pyplot as plt
-        plt.plot(kden.support, [kden.evaluate(xi) for xi in kden.support], 'o-')
-    return kden
-
-
-def quantile_from_kdensity(kden, quantile=0.5):
-    return kden.support[kde1.cdf >= quantile][0]
-
-
-def wkde1d(state, new_bar):
-    
-    try:
-        wkde = weighted_kernel_density_1d(
-                values=np.array(state['trades']['price']), 
-                weights=np.array(state['trades']['volume'])
-                )
-        # new_bar['wkde'] = wkde
-        new_bar['kd_10'] = quantile_from_kdensity(new_bar['kden'], quantile=0.1)
-        new_bar['kd_50'] = quantile_from_kdensity(new_bar['kden'], quantile=0.5)
-        new_bar['kd_90'] = quantile_from_kdensity(new_bar['kden'], quantile=0.9)
-    except:
-        new_bar['wkde'] = None
-        new_bar['kd_10'] = None
-        new_bar['kd_50'] = None
-        new_bar['kd_90'] = None
-
-    return new_bar
-
-
-def save_bar(state, wkde=False):
+def save_bar(state):
     new_bar = {}
     if state['tick_count'] == 0:
         return new_bar
@@ -187,6 +67,7 @@ def save_bar(state, wkde=False):
     new_bar['duration_sec'] = (new_bar['close_at'] - new_bar['open_at']).total_seconds()
     new_bar['duration_min'] = new_bar['duration_sec'] / 60
     new_bar['duration_ns'] = state['duration_ns']
+    # new_bar['duration_dt'] = datetime.duration()? todo
     new_bar['price_open'] = state['trades']['price'][0]
     new_bar['price_close'] = state['trades']['price'][-1]
     new_bar['price_low'] = state['price_min']
@@ -210,8 +91,17 @@ def save_bar(state, wkde=False):
     new_bar['tick_run_max'] = state['tick_run_max']
     new_bar['volume_run_max'] = state['volume_run_max']
     new_bar['dollar_run_max'] = state['dollar_run_max']
-    new_bar = wkde1d(state, new_bar) if wkde else new_bar
     return new_bar
+
+
+def get_next_renko_thresh(thresh_renko, last_return):
+    if last_return >= 0:
+        thresh_renko_bull = thresh_renko
+        thresh_renko_bear = -thresh_renko * 2
+    elif last_return < 0:
+        thresh_renko_bull = thresh_renko * 2
+        thresh_renko_bear = -thresh_renko
+    return thresh_renko_bull, thresh_renko_bear
 
 
 def bar_thresh(state, last_bar_return=0):
@@ -258,9 +148,7 @@ def bar_thresh(state, last_bar_return=0):
 
 
 def imbalance_runs(state):
-    
     if len(state['trades']['side']) >= 2:
-        
         if state['trades']['side'][-1] == state['trades']['side'][-2]:
             state['tick_run'] += 1        
             state['volume_run'] += state['trades']['volume'][-1]
@@ -269,11 +157,9 @@ def imbalance_runs(state):
             state['tick_run'] = 0
             state['volume_run'] = 0
             state['dollar_run'] = 0
-
     state['tick_run_max'] = state['tick_run'] if state['tick_run'] > state['tick_run_max'] else state['tick_run_max']
     state['volume_run_max'] = state['volume_run'] if state['volume_run'] > state['volume_run_max'] else state['volume_run_max']
     state['dollar_run_max'] = state['dollar_run'] if state['dollar_run'] > state['dollar_run_max'] else state['dollar_run_max']
-
     return state
 
 
@@ -281,7 +167,6 @@ def imbalance_net(state):
     state['tick_imbalance'] += state['trades']['side'][-1]
     state['volume_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1]
     state['dollar_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1] * state['trades']['price'][-1]
-
     state['tick_imbalance_max'] = state['tick_imbalance'] if state['tick_imbalance'] > state['tick_imbalance_max'] else state['tick_imbalance_max']
     state['volume_imbalance_max'] = state['volume_imbalance'] if state['volume_imbalance'] > state['volume_imbalance_max'] else state['volume_imbalance_max']
     state['dollar_imbalance_max'] = state['dollar_imbalance'] if state['dollar_imbalance'] > state['dollar_imbalance_max'] else state['dollar_imbalance_max']    
@@ -301,25 +186,18 @@ def update_bar(tick, output_bars, state, thresh={}, outliner_pct_change = 0.002)
 
     if len(state['trades']['price']) >= 2:
         
-        state['tick_diff'] = state['trades']['price'][-1] - state['trades']['price'][-2]
-        state['tick_pct_change'] = state['tick_diff'] / state['trades']['price'][-2]
-        
-        if abs(state['tick_pct_change']) > outliner_pct_change:
-            print('dropping outlier tick: ', state['tick_pct_change'])
-            print(tick)
-            return output_bars, state
-
-        tick_side = tick_rule(first_price=state['trades']['price'][-1], 
-                            second_price=state['trades']['price'][-2], 
-                            last_side=state['trades']['side'][-1])
+        tick_side = tick_rule(
+            first_price=state['trades']['price'][-1], 
+            second_price=state['trades']['price'][-2], 
+            last_side=state['trades']['side'][-1]
+            )
     else: 
         tick_side = 0
-    state['trades']['side'].append(tick_side)
-    
-    state = imbalance_net(state)
 
+    state['trades']['side'].append(tick_side)
+    state = imbalance_net(state)
     state = imbalance_runs(state)
-    # state['now_diff'] = int(datetime.datetime.utcnow().timestamp() * 1000000000) - state['trades']['epoch'][0]
+    # state['tick_latency'] = int(datetime.datetime.utcnow().timestamp() * 1000000000) - state['trades']['epoch'][0]
     state['duration_ns'] = tick['epoch'] - state['trades']['epoch'][0]
     state['tick_count'] += 1
     state['volume_sum'] += tick['volume']
@@ -341,15 +219,15 @@ def update_bar(tick, output_bars, state, thresh={}, outliner_pct_change = 0.002)
     return output_bars, state
 
 
-def build_bars(ts, thresh={}, as_df=True):
+def build_bars(df, thresh={}, as_df=True):
     state = reset_state(thresh)
     output_bars = []
     nrow = 0
-    while nrow < len(ts):
+    while nrow < len(df):
         tick = {
-            'epoch': ts['epoch'].values[nrow],
-            'price': ts['price'].values[nrow],
-            'volume': ts['volume'].values[nrow]
+            'epoch': df['epoch'].values[nrow],
+            'price': df['price'].values[nrow],
+            'volume': df['volume'].values[nrow]
         }
         output_bars, state = update_bar(tick, output_bars, state, thresh)
         nrow += 1
@@ -360,21 +238,19 @@ def build_bars(ts, thresh={}, as_df=True):
     return output_bars, state
 
 
-def time_bars(ts, date, freq='15min', as_df=True):
-    ts['date_time'] = pd.to_datetime(ts['epoch'], utc=True, unit='ns')
+def time_bars(df, date, freq='15min', as_df=True):
+    df['date_time'] = pd.to_datetime(df['epoch'], utc=True, unit='ns')
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
     dr = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
-    new_bars = []
+    output_bars = []
     for i in list(range(len(dr)-2)):
-        ticks = ts[(ts.date_time >= dr[i]) & (ts.date_time < dr[i+1])]
-        _, state = build_bars(ts=ticks, thresh={})
+        ticks = df[(df.date_time >= dr[i]) & (df.date_time < dr[i+1])]
+        _, state = build_bars(df=ticks, thresh={})
         bar = save_bar(state)
         bar['open_at'] = dr[i]
         bar['close_at'] = dr[i+1]
-        new_bars.append(bar)
-
+        output_bars.append(bar)
     if as_df:
-        new_bars = pd.DataFrame(new_bars).set_index('close_at', drop=True)
-
-    return new_bars
+        output_bars = pd.DataFrame(output_bars).set_index('close_at', drop=True)
+    return output_bars

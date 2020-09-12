@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 
 def rema_filter_update(series_last, rema_last, length=14, lamb=0.5):
@@ -57,6 +56,11 @@ def jma_filter(series, length:int=7, phase:int=50, power:int=2):
 
     jma[0:length] = [None] * length
     return jma
+
+
+def add_jma_filter(df:pd.DataFrame, col:str, length:int=7, phase:int=50, power:int=2):
+    df[col+'_jma'] = jma_filter(df[col], length, phase, power)
+    return df
 
 
 def add_filters(df:pd.DataFrame, col:str):

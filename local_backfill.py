@@ -102,3 +102,37 @@ def backfill_dates_tofile(symbol:str, start_date:str, end_date:str, result_path:
             df = pb.validate_df(df)
             save_df(df, symbol, date, full_result_path, date_partition, formats)
 
+
+def load_ticks(symbol, date, result_path, tick_type='trades', small_df=True):
+    
+    try:
+        df = pd.read_feather(result_path+f"/{tick_type}/feather/symbol={symbol}/date={date}/data.feather")
+    except:
+        lb.backfill_date_tofile(symbol, date, tick_type, result_path)
+        df = pd.read_feather(result_path+f"/{tick_type}/feather/symbol={symbol}/date={date}/data.feather")
+
+    # drop irrgular trade conditions
+    df = df[df.irregular==False].reset_index(drop=True)
+    # add dt diff
+    dt_diff = (df.sip_dt - df.exchange_dt)
+    # drop trades with >1sec timestamp diff
+    df = df[dt_diff < pd.to_timedelta(1, unit='S')].reset_index(drop=True)
+    # add median filter and remove outlier trades
+    df['filter'] = df['price'].rolling(window=5, center=False, min_periods=1).median()
+    df['filter_diff'] = abs(df['price'] - df['filter'])
+    df['filter_pct'] = abs((1-(df['filter_diff'] / df['price'])))*100
+    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
+    df = df[df.filter_zs < 10].reset_index(drop=True)
+    # remove duplicate rtrades
+    num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
+    if num_dups > 0: 
+        print(num_dups, ' duplicated trade removed')
+        df = df.drop_duplicates(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size'])
+    # drop trades with zero size/volume
+    df = df[df['size']>0].reset_index(drop=True)
+    # sort df
+    df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
+    if small_df:
+        return df[['sip_dt', 'price', 'size']]
+    else:
+        return df

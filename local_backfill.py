@@ -133,6 +133,8 @@ def load_ticks(symbol, date, result_path, tick_type='trades', small_df=True):
     # sort df
     df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
     if small_df:
-        return df[['sip_dt', 'price', 'size']]
+        df = df[['sip_dt', 'price', 'size']]
+        df['epoch'] = df.sip_dt.astype('int64')
+        return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'})
     else:
         return df

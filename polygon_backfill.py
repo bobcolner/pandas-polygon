@@ -181,14 +181,15 @@ def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
     
     # cast datetimes    
     df['sequence'] = df['sequence'].astype('uint32')
-    df['sip_dt'] = pd.to_datetime(df['sip_epoch'], utc=True, unit='ns')
-    df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], utc=True, unit='ns')
-    df['trf_dt'] = pd.to_datetime(df['trf_epoch'], utc=True, unit='ns')
+    df['sip_dt'] = pd.to_datetime(df['sip_epoch'], unit='ns')
+    df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], unit='ns')
+    df['trf_dt'] = pd.to_datetime(df['trf_epoch'], unit='ns')
     # drop columns
     df = df.drop(columns='tape')
     df = df.drop(columns='sip_epoch')
     df = df.drop(columns='exchange_epoch')
     df = df.drop(columns='trf_epoch')
+
     return df
 
 

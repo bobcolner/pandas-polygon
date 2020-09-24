@@ -108,7 +108,7 @@ def load_ticks(symbol, date, result_path, tick_type='trades', small_df=True):
     try:
         df = pd.read_feather(result_path+f"/{tick_type}/feather/symbol={symbol}/date={date}/data.feather")
     except:
-        lb.backfill_date_tofile(symbol, date, tick_type, result_path)
+        backfill_date_tofile(symbol, date, tick_type, result_path)
         df = pd.read_feather(result_path+f"/{tick_type}/feather/symbol={symbol}/date={date}/data.feather")
 
     # drop irrgular trade conditions

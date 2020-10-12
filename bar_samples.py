@@ -5,7 +5,7 @@ from statsmodels.stats.weightstats import DescrStatsW
 from tqdm import tqdm
 
 
-def tick_rule(first_price:float, second_price:float, last_side:int=0) -> int:
+def tick_rule(first_price: float, second_price: float, last_side: int=0) -> int:
     try:
         diff = first_price - second_price
     except:
@@ -21,7 +21,7 @@ def tick_rule(first_price:float, second_price:float, last_side:int=0) -> int:
     return side
 
 
-def imbalance_runs(state:dict) -> dict:
+def imbalance_runs(state: dict) -> dict:
     if len(state['trades']['side']) >= 2:
         if state['trades']['side'][-1] == state['trades']['side'][-2]:
             state['tick_run'] += 1        
@@ -37,17 +37,17 @@ def imbalance_runs(state:dict) -> dict:
     return state
 
 
-def imbalance_net(state:dict) -> dict:
+def imbalance_net(state: dict) -> dict:
     state['tick_imbalance'] += state['trades']['side'][-1]
     state['volume_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1]
     state['dollar_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1] * state['trades']['price'][-1]
     return state
 
 
-def reset_state(thresh:dict={}) -> dict:
+def reset_state(thresh: dict={}) -> dict:
     state = {}    
     state['thresh'] = thresh
-    # accululators
+    # accumulators
     state['duration_sec'] = 0
     state['price_min'] = 10 ** 5
     state['price_max'] = 0
@@ -73,7 +73,7 @@ def reset_state(thresh:dict={}) -> dict:
     return state
 
 
-def bar_thresh_gt(state:dict, last_bar_return:float=0) -> dict:
+def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
 
     def get_next_renko_thresh(renko_size, last_return, reversal_multiple=2):
         if last_return >= 0:
@@ -134,7 +134,7 @@ def bar_thresh_gt(state:dict, last_bar_return:float=0) -> dict:
     return state
 
 
-def output_new_bar(state) -> dict:
+def output_new_bar(state: dict) -> dict:
     new_bar = {}
     if state['tick_count'] == 0:
         return new_bar
@@ -180,7 +180,7 @@ def output_new_bar(state) -> dict:
     return new_bar
 
 
-def update_state_and_bars(tick, state, output_bars, thresh={}):
+def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={}):
     
     state['trades']['epoch'].append(tick['epoch'])
     state['trades']['price'].append(tick['price'])
@@ -209,7 +209,7 @@ def update_state_and_bars(tick, state, output_bars, thresh={}):
     state['bar_return'] = tick['price'] - state['trades']['price'][0] # price diff (latest - bar open)
     
     last_bar_side = output_bars[-1]['bar_return'] if len(output_bars) > 0 else 0
-    state = bar_thresh_gt(state, last_bar_return=last_bar_side)
+    state = bar_thresh(state, last_bar_return=last_bar_side)
     
     if state['trigger_yet?!'] != 'waiting':
         new_bar = output_new_bar(state)
@@ -219,7 +219,7 @@ def update_state_and_bars(tick, state, output_bars, thresh={}):
     return output_bars, state
 
 
-def time_bars(df, date, freq='15min') -> list:
+def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
     df['date_time'] = pd.to_datetime(df['epoch'], utc=True, unit='ns')
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
@@ -235,7 +235,7 @@ def time_bars(df, date, freq='15min') -> list:
     return output_bars
 
 
-def build_bars(ticks_df, thresh={}):
+def build_bars(ticks_df:pd.DataFrame, thresh: dict):
     state = reset_state(thresh)
     output_bars = []
     for row in tqdm(ticks_df.itertuples(), total=ticks_df.shape[0]):

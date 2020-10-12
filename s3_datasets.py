@@ -1,35 +1,35 @@
-import os
+from os import environ
 from io import BytesIO
 from tempfile import NamedTemporaryFile
 import pandas as pd
-from polygon_backfill import backfill_date_todf
 from fsspec import filesystem
 from s3fs import S3FileSystem
+from polygon_backfill import backfill_date_todf
 
 
-def get_s3fs_client(cached=True):
+def get_s3fs_client(cached: bool):
     if cached:
         # https://filesystem-spec.readthedocs.io/
         s3 = filesystem(
             protocol='filecache',
             target_protocol='s3',
             target_options={
-                'key': os.environ['B2_ACCESS_KEY_ID'],
-                'secret': os.environ['B2_SECRET_ACCESS_KEY'],
-                'client_kwargs': {'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+                'key': environ['B2_ACCESS_KEY_ID'],
+                'secret': environ['B2_SECRET_ACCESS_KEY'],
+                'client_kwargs': {'endpoint_url': environ['B2_ENDPOINT_URL']}
                 },
             cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
             )
     else:
         s3 = S3FileSystem(
-                key=os.environ['B2_ACCESS_KEY_ID'], 
-                secret=os.environ['B2_SECRET_ACCESS_KEY'], 
-                client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+                key=environ['B2_ACCESS_KEY_ID'], 
+                secret=environ['B2_SECRET_ACCESS_KEY'], 
+                client_kwargs={'endpoint_url': environ['B2_ENDPOINT_URL']}
             )
     return s3
 
 
-s3 = get_s3fs_client(cached=True)
+s3 = get_s3fs_client(cached=False)
 
 
 def list_symbol(symbol:str, tick_type:str='trades') -> str:

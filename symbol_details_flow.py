@@ -1,9 +1,10 @@
 from pathlib import Path
+import pandas as pd
 from prefect import Flow, task, unmapped
 from prefect.engine.results import LocalResult, GCSResult
-from prefect.engine.executors import DaskExecutor, LocalDaskExecutor, LocalExecutor
+from prefect.engine.executors import DaskExecutor
 from polygon_rest_api import get_ticker_details
-import pandas as pd
+
 
 # import data
 npdf = pd.read_parquet('npdf.parquet')
@@ -31,13 +32,10 @@ def reduce_list(dict_list:list) -> pd.DataFrame:
 result_store = LocalResult(dir='/Users/bobcolner/QuantClarity/tmp', location=result_filename)
 
 with Flow(name="symbol-details-flow", result=result_store) as flow:
-    
-    details_list = symbol_details_task.map(symbol=npdf.columns)
-    
+    details_list = symbol_details_task.map(symbol=npdf.columns)    
     details_df = reduce_list(details_list)
 
 
-# executor = LocalDaskExecutor(scheduler='processes')
 executor = DaskExecutor(
     cluster_kwargs={
         'n_workers':4,

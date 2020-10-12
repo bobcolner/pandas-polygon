@@ -51,5 +51,4 @@ def backfill_dates_tofile(symbol:str, start_date:str, end_date:str, result_path:
             full_result_path = result_path
         else: # get tick data
             df = pb.backfill_date_todf(symbol, date, tick_type)
-            # dir_path = ticks_df_tofile(df, symbol, date, tick_type, result_path + f"/ticks/{tick_type}")
             dir_path = ticks_df_tofile(df, symbol, date, tick_type, result_path)

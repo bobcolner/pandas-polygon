@@ -1,26 +1,25 @@
-import os
 import pandas as pd
-import s3_datasets as s3d
+from s3_datasets import get_tick_df, backfill_date_tos3
 from local_backfill import ticks_df_tofile
 
 
-def load_ticks(local_path:str, symbol:str, date:str, tick_type='trades', clean=True) -> pd.DataFrame:
+def load_ticks(local_path:str, symbol:str, date:str, tick_type='trades', clean=False) -> pd.DataFrame:
     try:
         print('trying to get ticks from local file...')
-        pd.read_feather(local_path + "{tick_type}/symbol={symbol}/date={date}/data.feather")
+        df = pd.read_feather(local_path + f"{tick_type}/symbol={symbol}/date={date}/data.feather")
     except FileNotFoundError:
         try:
             print('trying to get ticks from s3...')
-            df = s3d.get_tick_df(symbol, date, tick_type)
+            df = get_tick_df(symbol, date, tick_type)
         except FileNotFoundError:
-            print('trying to get ticks from polygon API')
-            df = s3d.backfill_date_tos3(symbol, date, tick_type)
+            print('trying to get ticks from polygon API...')
+            df = backfill_date_tos3(symbol, date, tick_type)
         finally:
+            print('saving ticks to local file')
             ticks_df_tofile(df, symbol, date, tick_type, local_path)
     
-    if tick_type == 'trades' and clean and df:
+    if tick_type == 'trades' and clean:
         df = clean_trades_df(df)
-        print(df.info())
 
     return df
 

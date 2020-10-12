@@ -190,3 +190,73 @@ def ts_groupby(df, column='epoch_cs'):
     groups.columns = ['_'.join(tup).rstrip('_') for tup in groups.columns.values]
     return groups
 
+
+def ticks_df_tofile(df:pd.DataFrame, symbol:str, date:str, result_path:str, 
+    date_partition:str, formats=['parquet', 'feather']):
+
+    if date_partition == 'file_dates':
+        partion_path = f"{symbol}/{date}"
+    elif date_partition == 'dir_dates':
+        partion_path = f"{symbol}/{date}/"
+    elif date_partition == 'hive':
+        partion_path = f"symbol={symbol}/date={date}/"
+    
+    if 'csv' in formats:
+        path = result_path + '/csv/' + partion_path
+        Path(path).mkdir(parents=True, exist_ok=True)
+        df.to_csv(
+            path_or_buf=path+'data.csv',
+            index=False,
+        )
+    if 'parquet' in formats:
+        path = result_path + '/parquet/' + partion_path
+        Path(path).mkdir(parents=True, exist_ok=True)
+        df.to_parquet(
+            path=path+'data.parquet',
+            engine='auto',
+            index=False,
+            partition_cols=None,
+        )
+    if 'feather' in formats:
+        path = result_path + '/feather/' + partion_path
+        Path(path).mkdir(parents=True, exist_ok=True)
+        df.to_feather(path+'data.feather', version=2)
+
+
+def dates_from_path(dates_path:str, date_partition:str) -> list:
+    if os.path.exists(dates_path):
+        file_list = os.listdir(dates_path)
+        if '.DS_Store' in file_list:
+            file_list.remove('.DS_Store')
+
+        if date_partition == 'file_symbol_date':
+            # assumes {symbol}_{yyyy-mm-dd}.{format} filename template
+            existing_dates = [i.split('_')[1].split('.')[0] for i in file_list]
+        
+        elif date_partition == 'file_dates':
+            # assumes {yyyy-mm-dd}.{format} filename template
+            existing_dates = [i.split('.')[0] for i in file_list]
+        
+        elif date_partition == 'dir_dates':
+            # assumes {yyyy-mm-dd}/data.{format} filename template
+            existing_dates = file_list
+
+        elif date_partition == 'hive':
+            # assumes {date}={yyyy-mm-dd}/data.{format} filename template
+            existing_dates = [i.split('=')[1] for i in file_list]
+
+        return existing_dates
+
+
+def load_ticks(symbol:str, date:str, tick_type='trades', clean=True) -> pd.DataFrame:
+    try:
+        print('trying to get ticks from s3...')
+        df = s3d.get_tick_df(symbol, date, tick_type)
+    except FileNotFoundError:
+        print('needed todownload ticks from polygon API')
+        df = s3d.backfill_date_tos3(symbol, date, tick_type)
+    
+    if tick_type == 'trades' and clean:
+        df = clean_trades_df(df)
+
+    return df

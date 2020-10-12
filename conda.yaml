@@ -22,12 +22,11 @@ dependencies:
   - prefect[viz, gcp, aws]
   - requests
   - s3fs
-  - trio
   - tqdm
   - matplotlib
   - graphviz
   - bokeh
   - pip
   - pip:
-    - trio_websocket
     - pandas-bokeh
+    - finplot

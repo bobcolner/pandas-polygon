@@ -1,31 +1,53 @@
 import os
 from io import BytesIO
 from tempfile import NamedTemporaryFile
-import numpy as np
 import pandas as pd
-import s3fs
 from polygon_backfill import backfill_date_todf
+from fsspec import filesystem
+from s3fs import S3FileSystem
 
 
-s3 = s3fs.S3FileSystem(
-        key=os.environ['B2_ACCESS_KEY_ID'], 
-        secret=os.environ['B2_SECRET_ACCESS_KEY'], 
-        client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
-    )
+def get_s3fs_client(cached=True):
+    if cached:
+        # https://filesystem-spec.readthedocs.io/
+        s3 = filesystem(
+            protocol='filecache',
+            target_protocol='s3',
+            target_options={
+                'key': os.environ['B2_ACCESS_KEY_ID'],
+                'secret': os.environ['B2_SECRET_ACCESS_KEY'],
+                'client_kwargs': {'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+                },
+            cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
+            )
+    else:
+        s3 = S3FileSystem(
+                key=os.environ['B2_ACCESS_KEY_ID'], 
+                secret=os.environ['B2_SECRET_ACCESS_KEY'], 
+                client_kwargs={'endpoint_url': os.environ['B2_ENDPOINT_URL']}
+            )
+    return s3
 
-def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> bool:
+
+s3 = get_s3fs_client(cached=True)
+
+
+def list_symbol(symbol:str, tick_type:str='trades') -> str:
+    return s3.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
+
+
+def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
     df = backfill_date_todf(symbol, date, tick_type)
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
         s3.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
-    return True
+    return df
 
 
-def list_s3_symbol(symbol:str) -> str:
-    return s3.ls(f"polygon-equities/data/trades/symbol={symbol}/")
-
-
-def get_s3_df(symbol:str, date:str, columns=None) -> pd.DataFrame:
-    byte_data = s3.cat(f"polygon-equities/data/trades/symbol={symbol}/date={date}/data.feather")
-    df = pd.read_feather(BytesIO(byte_data), columns=columns)
+def get_tick_df(symbol:str, date:str, tick_type:str='trades', columns=None) -> pd.DataFrame:    
+    byte_data = s3.cat(f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    if columns:
+        df = pd.read_feather(BytesIO(byte_data), columns=columns)
+    else:
+        df = pd.read_feather(BytesIO(byte_data))
     return df

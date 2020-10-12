@@ -4,10 +4,10 @@ from itertools import product
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.results import S3Result
-from prefect.engine.executors import DaskExecutor, LocalDaskExecutor, LocalExecutor
-from prefect.utilities.debug import raise_on_exception
+from prefect.engine.executors import DaskExecutor, LocalExecutor
 import pandas as pd
-from polygon_backfill import get_open_market_dates, backfill_date_tos3
+from polygon_backfill import get_open_market_dates, backfill_date_todf
+from s3_dataset import backfill_date_tos3
 
 
 @task(checkpoint=False)
@@ -25,8 +25,9 @@ def requested_dates_task(start_date:str, end_date:str) -> list:
     target="checkpoints/{tick_type}/symbol={symbol_date[0]}/date={symbol_date[1]}/data.prefect"
 )
 def backfill_task(symbol_date:tuple, tick_type:str) -> pd.DataFrame:
-    return backfill_date_tos3(symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)
-    
+    df = backfill_date_tos3(symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)        
+    return True
+
 
 result_store = S3Result(
     bucket='polygon-equities', 
@@ -47,16 +48,15 @@ with Flow(name='backfill-flow', result=result_store) as flow:
 
     req_dates = requested_dates_task(start_date, end_date)
 
-    symbol_date = cross_product_task(symbols, req_dates)
+    symbol_date_list = cross_product_task(symbols, req_dates)
 
     backfill_task_result = backfill_task.map(
-        symbol_date=symbol_date,    
+        symbol_date=symbol_date_list,
         tick_type=unmapped(tick_type)
     )
 
 
 # executor = LocalExecutor()
-# executor = LocalDaskExecutor(scheduler='threads')
 executor = DaskExecutor(
     cluster_kwargs={
         'n_workers': cpu_count(),

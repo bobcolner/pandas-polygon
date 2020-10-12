@@ -41,9 +41,6 @@ def imbalance_net(state:dict) -> dict:
     state['tick_imbalance'] += state['trades']['side'][-1]
     state['volume_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1]
     state['dollar_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1] * state['trades']['price'][-1]
-    # state['tick_imbalance_max'] = state['tick_imbalance'] if state['tick_imbalance'] > state['tick_imbalance_max'] else state['tick_imbalance_max']
-    # state['volume_imbalance_max'] = state['volume_imbalance'] if state['volume_imbalance'] > state['volume_imbalance_max'] else state['volume_imbalance_max']
-    # state['dollar_imbalance_max'] = state['dollar_imbalance'] if state['dollar_imbalance'] > state['dollar_imbalance_max'] else state['dollar_imbalance_max']    
     return state
 
 

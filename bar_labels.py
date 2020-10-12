@@ -27,8 +27,7 @@ def get_tb_outcome(reward_ratio:float, risk_level:float, side:str, label_prices:
         'label_side': side,
         'label_outcome': goal,
         'label_outcome_at': target_at,
-        'label_first_price': first_price,
-        'label_outcome_price': target_price,
+        'label_price_pct_change': (first_price - target_price) / (first_price * 100)
     }
     return outcome
 
@@ -43,8 +42,6 @@ def triple_barrier_outcomes(label_prices:pd.DataFrame, risk_level:float, reward_
             profit_outcome = get_tb_outcome(reward, risk_level, side, label_prices, goal='profit')
             tb_outcomes.append(profit_outcome)
     tb_df = pd.DataFrame(tb_outcomes).sort_values('label_outcome_at')
-    tb_df['price_diff'] = tb_df['label_outcome_price'] - first_price
-    tb_df['price_pct_change'] = (tb_df['price_diff'] / first_price) * 100
     return tb_df
 
 
@@ -94,24 +91,31 @@ def outcomes_to_label(outcomes:pd.DataFrame, price_end_at:pd._libs.tslibs.timest
 
 def get_trend_outcome(label_prices):
     if len(label_prices) < 10:
-        return trend = {}
-    model = sm.OLS(label_prices.price.values, label_prices.index.values)
+        return {}
+    df = label_prices.copy()
+    df['const'] = 1
+    df = df.reset_index()
+    model = sm.OLS(endog=df['price'], exog=df[['const', 'index']])
     results = model.fit()
     trend = {
-        'label_trend_slope': results.params[0],
+        'label_trend_slope': results.params[1],
         'label_trend_tvalue': results.tvalues[0],
         'label_trend_r2': results.rsquared,
     }
     return trend
 
 
+def get_label_ticks(ticks_df:pd.DataFrame, label_start_at:pd._libs.tslibs.timestamps.Timestamp, label_horizon_mins:int) -> pd.DataFrame:
+    price_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
+    price_end_at = label_start_at + pd.Timedelta(value=label_horizon_mins, unit='minutes')
+    label_prices = ticks_df.loc[(ticks_df['epoch'] >= price_start_at.value) & (ticks_df['epoch'] < price_end_at.value)]
+    return label_prices,  price_end_at
+
+
 def label_bars(bars:list, ticks_df:pd.DataFrame, risk_level:float, label_horizon_mins:int, reward_ratios:list) -> list:
 
     for idx, row in tqdm(enumerate(bars), total=len(bars)):
-        label_start_at = row['close_at']
-        price_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
-        price_end_at = label_start_at + pd.Timedelta(value=label_horizon_mins, unit='minutes')
-        label_prices = ticks_df[(ticks_df['epoch'] >= price_start_at.value) & (ticks_df['epoch'] < price_end_at.value)]        
+        label_prices, price_end_at = get_label_ticks(ticks_df, row['close_at'], label_horizon_mins)
         outcomes = triple_barrier_outcomes(label_prices, risk_level, reward_ratios)
         label = outcomes_to_label(outcomes, price_end_at)
         bars[idx].update(label)

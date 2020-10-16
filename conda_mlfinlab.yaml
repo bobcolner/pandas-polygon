@@ -4,7 +4,9 @@ channels:
   - defaults
 dependencies:
   - python = 3.7
+  - mkl
   - pip
-  - pyarrow > 1.0
+  - pyarrow >= 1.0
+  - jupyterlab >= 2.0
   - pip:
     - mlfinlab

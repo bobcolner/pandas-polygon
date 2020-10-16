@@ -108,7 +108,7 @@ def get_trend_outcome(label_prices):
 def get_label_ticks(ticks_df:pd.DataFrame, label_start_at:pd._libs.tslibs.timestamps.Timestamp, label_horizon_mins:int) -> pd.DataFrame:
     price_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
     price_end_at = label_start_at + pd.Timedelta(value=label_horizon_mins, unit='minutes')
-    label_prices = ticks_df.loc[(ticks_df['epoch'] >= price_start_at.value) & (ticks_df['epoch'] < price_end_at.value)]
+    label_prices = ticks_df.loc[(ticks_df['date_time'] >= price_start_at) & (ticks_df['date_time'] < price_end_at)]
     return label_prices,  price_end_at
 
 

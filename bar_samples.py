@@ -64,7 +64,7 @@ def reset_state(thresh: dict={}) -> dict:
     state['dollar_run'] = 0
     # copy of tick events
     state['trades'] = {}
-    state['trades']['epoch'] = []
+    state['trades']['date_time'] = []
     state['trades']['price'] = []
     state['trades']['volume'] = []
     state['trades']['side'] = []
@@ -140,23 +140,21 @@ def output_new_bar(state: dict) -> dict:
         return new_bar
     new_bar['bar_trigger'] = state['trigger_yet?!']
     # time
-    new_bar['open_epoch'] = state['trades']['epoch'][0]
-    new_bar['close_epoch'] = state['trades']['epoch'][-1]
-    new_bar['open_at'] = pd.to_datetime(state['trades']['epoch'][0], unit='ns')
-    new_bar['close_at'] = pd.to_datetime(state['trades']['epoch'][-1], unit='ns')
-    new_bar['duration_dt'] = new_bar['close_at'] - new_bar['open_at']    
+    new_bar['open_at'] = state['trades']['date_time'][0]
+    new_bar['close_at'] = state['trades']['date_time'][-1]
+    new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']    
     new_bar['duration_sec'] = state['duration_sec']
-    new_bar['duration_min'] = new_bar['duration_sec'] / 60
+    new_bar['duration_min'] = new_bar['duration_sec'] // 60
     # price
     new_bar['price_open'] = state['trades']['price'][0]
     new_bar['price_close'] = state['trades']['price'][-1]
     new_bar['price_low'] = state['price_min']
     new_bar['price_high'] = state['price_max']
-    new_bar['price_mean'] = np.array(state['trades']['price']).mean() 
-    new_bar['price_std'] = np.array(state['trades']['price']).std()
-    new_bar['price_q10'] = np.quantile(state['trades']['price'], q=0.1)
-    new_bar['price_q50'] = np.quantile(state['trades']['price'], q=0.5)
-    new_bar['price_q90'] = np.quantile(state['trades']['price'], q=0.9)
+    # new_bar['price_mean'] = np.array(state['trades']['price']).mean() 
+    # new_bar['price_std'] = np.array(state['trades']['price']).std()
+    # new_bar['price_q10'] = np.quantile(state['trades']['price'], q=0.1)
+    # new_bar['price_q50'] = np.quantile(state['trades']['price'], q=0.5)
+    # new_bar['price_q90'] = np.quantile(state['trades']['price'], q=0.9)
     new_bar['price_range'] = state['price_range']
     new_bar['bar_return'] = state['bar_return']
     # volume weighted price
@@ -182,7 +180,7 @@ def output_new_bar(state: dict) -> dict:
 
 def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={}):
     
-    state['trades']['epoch'].append(tick['epoch'])
+    state['trades']['date_time'].append(tick['date_time'])
     state['trades']['price'].append(tick['price'])
     state['trades']['volume'].append(tick['volume']) 
     
@@ -198,8 +196,8 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
     state['trades']['side'].append(tick_side)
     state = imbalance_net(state)
     state = imbalance_runs(state)
-    # state['tick_latency'] = int(datetime.datetime.utcnow().timestamp() * 1000000000) - state['trades']['epoch'][0]
-    state['duration_sec'] = (tick['epoch'] - state['trades']['epoch'][0]) // 10**9
+    # state['tick_latency_td'] = datetime.datetime.utcnow().timestamp() - state['trades']['date_time'][0]
+    state['duration_sec'] = (tick['date_time'].value - state['trades']['date_time'][0].value) // 10**9
     state['tick_count'] += 1
     state['volume_sum'] += tick['volume']
     state['dollar_sum'] += tick['price'] * tick['volume']
@@ -220,7 +218,6 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
 
 
 def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
-    df['date_time'] = pd.to_datetime(df['epoch'], utc=True, unit='ns')
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
     dr = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
@@ -240,7 +237,7 @@ def build_bars(ticks_df:pd.DataFrame, thresh: dict):
     output_bars = []
     for row in tqdm(ticks_df.itertuples(), total=ticks_df.shape[0]):
         tick = {
-            'epoch': row.epoch,
+            'date_time': row.date_time,
             'price': row.price,
             'volume': row.volume
         }

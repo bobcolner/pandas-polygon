@@ -6,7 +6,7 @@ from pandas_market_calendars import get_calendar
 from polygon_rest_api import get_grouped_daily, get_stock_ticks
 
 
-def read_market_daily(result_path:str) -> pd.DataFrame:    
+def read_market_daily(result_path: str) -> pd.DataFrame:    
     df = read_matching_files(glob_string=result_path+'/market_daily/*.feather', reader=pd.read_feather)
     df = df.set_index(pd.to_datetime(df.date), drop=True)
     df = df.drop(columns=['date'])
@@ -15,18 +15,18 @@ def read_market_daily(result_path:str) -> pd.DataFrame:
     return df
 
 
-def read_matching_files(glob_string:str, reader=pd.read_csv) -> pd.DataFrame:
+def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
     return pd.concat(map(reader, glob(os.path.join('', glob_string))), ignore_index=True)
 
 
-def get_open_market_dates(start_date:str, end_date:str) -> list:
+def get_open_market_dates(start_date: str, end_date: str) -> list:
     market = get_calendar('NYSE')
     schedule = market.schedule(start_date=start_date, end_date=end_date)
     dates = [i.date().isoformat() for i in schedule.index]
     return dates
 
 
-def validate_df(df:pd.DataFrame) -> pd.DataFrame:
+def validate_df(df: pd.DataFrame) -> pd.DataFrame:
     if df is None:
         raise ValueError('df is NoneType')
     if len(df) < 1:
@@ -37,7 +37,7 @@ def validate_df(df:pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-def find_compleat_symbols(df:pd.DataFrame, active_days:int=1, compleat_only:bool=True) -> pd.DataFrame:
+def find_compleat_symbols(df: pd.DataFrame, active_days: int=1, compleat_only: bool=True) -> pd.DataFrame:
     # count aviables days for each symbol
     sym_count = df.groupby('symbol').count()['open']
     print(df.symbol.value_counts().describe())
@@ -49,12 +49,12 @@ def find_compleat_symbols(df:pd.DataFrame, active_days:int=1, compleat_only:bool
     return df_filtered
  
 
-def get_market_daily_df(daily:list) -> pd.DataFrame:
+def get_market_daily_df(daily: list) -> pd.DataFrame:
     
     if len(daily) < 1:
         raise ValueError('get_grouped_daily() returned zero rows')
 
-    df = pd.DataFrame(daily, columns=['T', 'v', 'o', 'c', 'h', 'l', 'vw'])
+    df = pd.DataFrame(daily, columns=['T', 'v', 'o', 'c', 'h', 'l', 'vw', 't'])
     df = df.rename(columns={'T': 'symbol',
                             'v': 'volume',
                             'o': 'open',
@@ -62,18 +62,21 @@ def get_market_daily_df(daily:list) -> pd.DataFrame:
                             'h': 'high',
                             'l': 'low',
                            'vw': 'vwap',
-                            'n': 'count',
-                            't': 'open_epoch'})
-    # add columns
-    df['date'] = date
-    df['date'] = df['date'].astype('string')
+                            't': 'epoch'})
+    # add datetime index
+    df = df.set_index(pd.to_datetime(df['epoch'] * 10**6).dt.normalize(), drop=True)
+    df = df.rename_axis(index='date')
+    df = df.drop(columns='epoch')
+    # fix vwap
+    mask = ~(df.vwap.between(df.low, df.high)) # vwap outside the high/low range
+    df.loc[mask, 'vwap'] = df.loc[mask, 'close']
+    # add dollar total
     df['dollar_total'] = df['vwap'] * df['volume']
     # optimze datatypes
     df['volume'] = df['volume'].astype('uint64')
     for col in ['dollar_total', 'vwap', 'open', 'close', 'high', 'low']:
         df[col] = df[col].astype('float32')
-    # filter low liquidity stocks
-    df = df[df['dollar_total'] > 10 ** 4]
+
     return df
 
 
@@ -97,7 +100,7 @@ def add_cond_filter(ticks: list) -> list:
     return ticks
 
 
-def get_ticks_date(symbol: str, date: str, tick_type:str) -> list:
+def get_ticks_date(symbol: str, date: str, tick_type: str) -> list:
     last_tick = None
     limit = 50000
     ticks = []
@@ -108,7 +111,7 @@ def get_ticks_date(symbol: str, date: str, tick_type:str) -> list:
         # filter ticks
         ticks_batch = add_cond_filter(ticks_batch)
         # update last_tick
-        if len(ticks_batch) < 1:  # empty tick batch
+        if len(ticks_batch) < 1: # empty tick batch
             run = False
         last_tick = ticks_batch[-1]['y'] # exchange ts
         # logging
@@ -125,7 +128,7 @@ def get_ticks_date(symbol: str, date: str, tick_type:str) -> list:
     return ticks
 
 
-def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
+def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
     if tick_type == 'trades':
         df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z', 'green', 'irregular', 'blank', 'afterhours'])
         df = df.rename(columns={'p': 'price',
@@ -174,13 +177,11 @@ def ticks_to_df(ticks:list, tick_type:str) -> pd.DataFrame:
     df['sip_dt'] = pd.to_datetime(df['sip_epoch'], unit='ns')
     df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], unit='ns')
     # drop columns
-    df = df.drop(columns='tape')
-    df = df.drop(columns='sip_epoch')
-    df = df.drop(columns='exchange_epoch')
+    df = df.drop(columns=['tape', 'sip_epoch', 'exchange_epoch'])
     return df
 
 
-def backfill_date_todf(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
+def backfill_date_todf(symbol: str, date: str, tick_type: str='trades') -> pd.DataFrame:
     if symbol == 'market_daily':
         daily = get_grouped_daily(locale='us', market='stocks', date=date)
         df = get_market_daily_df(daily)

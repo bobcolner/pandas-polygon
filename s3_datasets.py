@@ -18,7 +18,7 @@ def get_s3fs_client(cached: bool):
                 'secret': environ['B2_SECRET_ACCESS_KEY'],
                 'client_kwargs': {'endpoint_url': environ['B2_ENDPOINT_URL']}
                 },
-            cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
+            # cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
             )
     else:
         s3 = S3FileSystem(
@@ -32,11 +32,11 @@ def get_s3fs_client(cached: bool):
 s3 = get_s3fs_client(cached=False)
 
 
-def list_symbol(symbol:str, tick_type:str='trades') -> str:
+def list_symbol_dates(symbol: str, tick_type: str='trades') -> str:
     return s3.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
 
 
-def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
+def put_tick_date(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     df = backfill_date_todf(symbol, date, tick_type)
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
@@ -44,7 +44,7 @@ def backfill_date_tos3(symbol:str, date:str, tick_type:str) -> pd.DataFrame:
     return df
 
 
-def get_tick_df(symbol:str, date:str, tick_type:str='trades', columns=None) -> pd.DataFrame:    
+def get_tick_date(symbol: str, date: str, tick_type: str='trades', columns=None) -> pd.DataFrame:    
     byte_data = s3.cat(f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
     if columns:
         df = pd.read_feather(BytesIO(byte_data), columns=columns)

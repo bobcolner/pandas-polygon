@@ -1,19 +1,25 @@
 import pandas as pd
-from s3_datasets import get_tick_df, backfill_date_tos3
-from local_backfill import ticks_df_tofile
+from s3_datasets import get_tick_date, put_tick_date
 
 
-def load_ticks(local_path:str, symbol:str, date:str, tick_type='trades', clean=False) -> pd.DataFrame:
+def ticks_df_tofile(df: pd.DataFrame, symbol: str, date: str, tick_type: str, result_path: str):
+    # 'hive' folder template
+    path = result_path + f"{tick_type}/symbol={symbol}/date={date}/"
+    Path(path).mkdir(parents=True, exist_ok=True)
+    df.to_feather(path+'data.feather', version=2)
+
+
+def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades', clean: bool=False) -> pd.DataFrame:
     try:
         print('trying to get ticks from local file...')
         df = pd.read_feather(local_path + f"{tick_type}/symbol={symbol}/date={date}/data.feather")
     except FileNotFoundError:
         try:
             print('trying to get ticks from s3...')
-            df = get_tick_df(symbol, date, tick_type)
+            df = get_tick_date(symbol, date, tick_type)
         except FileNotFoundError:
             print('trying to get ticks from polygon API...')
-            df = backfill_date_tos3(symbol, date, tick_type)
+            df = put_tick_date(symbol, date, tick_type)
         finally:
             print('saving ticks to local file')
             ticks_df_tofile(df, symbol, date, tick_type, local_path)
@@ -24,23 +30,22 @@ def load_ticks(local_path:str, symbol:str, date:str, tick_type='trades', clean=F
     return df
 
 
-def clean_trades_df(df:pd.DataFrame, small_df=True) -> pd.DataFrame:
+def clean_trades_df(df: pd.DataFrame, small_df: bool=True) -> pd.DataFrame:
     og_size = df.shape[0]
     # drop irrgular trade conditions
-    df = df[df.irregular==False].reset_index(drop=True)
+    df = df.loc[df.irregular==False].reset_index(drop=True)
     
     # add dt diff
     dt_diff = (df.sip_dt - df.exchange_dt)
     
     # drop trades with >1sec timestamp diff
-    df = df[dt_diff < pd.to_timedelta(1, unit='S')].reset_index(drop=True)
+    df = df.loc[dt_diff < pd.to_timedelta(1, unit='S')].reset_index(drop=True)
     
     # add median filter and remove outlier trades
     df['filter'] = df['price'].rolling(window=5, center=False, min_periods=1).median()
     df['filter_diff'] = abs(df['price'] - df['filter'])
-    df['filter_pct'] = abs((1-(df['filter_diff'] / df['price'])))*100
     df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
-    df = df[df.filter_zs < 10].reset_index(drop=True)
+    df = df.loc[df.filter_zs < 10].reset_index(drop=True)
     
     # remove duplicate trades
     num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
@@ -52,9 +57,8 @@ def clean_trades_df(df:pd.DataFrame, small_df=True) -> pd.DataFrame:
     df = df[df['size']>0].reset_index(drop=True)
     
     droped_rows = og_size - df.shape[0]
-    print('dropped', droped_rows, 'ticks (', round((droped_rows/og_size)*100, 2), '%)')
+    print('dropped', droped_rows, 'ticks (', round((droped_rows / og_size) * 100, 2), '%)')
 
-    # sort df
     df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
     if small_df:
         df = df[['sip_dt', 'price', 'size']]

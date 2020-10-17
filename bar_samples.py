@@ -196,7 +196,7 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
     state['trades']['side'].append(tick_side)
     state = imbalance_net(state)
     state = imbalance_runs(state)
-    # state['tick_latency_td'] = datetime.datetime.utcnow().timestamp() - state['trades']['date_time'][0]
+    # state['tick_latency_td'] = datetime.datetime.utcnow() - state['trades']['date_time'][0] # network latency (real-time only)
     state['duration_sec'] = (tick['date_time'].value - state['trades']['date_time'][0].value) // 10**9
     state['tick_count'] += 1
     state['volume_sum'] += tick['volume']
@@ -204,7 +204,7 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
     state['price_min'] = tick['price'] if tick['price'] < state['price_min'] else state['price_min']
     state['price_max'] = tick['price'] if tick['price'] > state['price_max'] else state['price_max']
     state['price_range'] = state['price_max'] - state['price_min']
-    state['bar_return'] = tick['price'] - state['trades']['price'][0] # price diff (latest - bar open)
+    state['bar_return'] = tick['price'] - state['trades']['price'][0]
     
     last_bar_side = output_bars[-1]['bar_return'] if len(output_bars) > 0 else 0
     state = bar_thresh(state, last_bar_return=last_bar_side)
@@ -220,14 +220,14 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
 def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
-    dr = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
+    dates = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
     output_bars = []
-    for i in tqdm(list(range(len(dr)-2))):
-        ticks = df[(df.date_time >= dr[i]) & (df.date_time < dr[i+1])]
+    for i in tqdm(list(range(len(dates)-2))):
+        ticks = df[(df.date_time >= dates[i]) & (df.date_time < dates[i+1])]
         _, state = build_bars(df=ticks, thresh={})
         bar = output_new_bar(state)
-        bar['open_at'] = dr[i]
-        bar['close_at'] = dr[i+1]
+        bar['open_at'] = dates[i]
+        bar['close_at'] = dates[i+1]
         output_bars.append(bar)
     return output_bars
 

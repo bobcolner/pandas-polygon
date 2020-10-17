@@ -1,15 +1,10 @@
 import numpy as np
 import pandas as pd
-import pandas_bokeh
-pandas_bokeh.output_file('bokeh_output.html')
 from tqdm import tqdm
-import polygon_backfill as pb
 
 
 def read_market_daily(result_path:str) -> pd.DataFrame:    
     df = read_matching_files(glob_string=result_path+'/market_daily/*.feather', reader=pd.read_feather)
-    df = df.set_index(pd.to_datetime(df.date), drop=True)
-    df = df.drop(columns=['date'])
     df = find_compleat_symbols(df, compleat_only=True)
     df = df.sort_index()
     return df
@@ -177,6 +172,7 @@ def cluster_sim_matrix(similarity:pd.DataFrame) -> pd.DataFrame:
     # join all cluster lables
     cluster_lables = cluster_labels_n10.join(cluster_labels_n50, rsuffix='_').join(cluster_labels_n100, rsuffix='__').join(cluster_labels_n200, rsuffix='___').drop(columns=['symbol_', 'symbol__', 'symbol___'])
     return cluster_lables
+
 
 def join_symbol_data(
     details_df:pd.DataFrame, 

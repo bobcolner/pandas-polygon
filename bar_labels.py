@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def get_tb_outcome(reward_ratio:float, risk_level:float, side:str, label_prices:pd.DataFrame, goal='profit'):
+def get_tb_outcome(reward_ratio: float, risk_level: float, side: str, label_prices: pd.DataFrame, goal: str='profit') -> dict:
     first_price = label_prices['price'].values[0]
     if side=='long':
         if goal=='profit':
@@ -32,7 +32,7 @@ def get_tb_outcome(reward_ratio:float, risk_level:float, side:str, label_prices:
     return outcome
 
 
-def triple_barrier_outcomes(label_prices:pd.DataFrame, risk_level:float, reward_ratios:list) -> list:
+def triple_barrier_outcomes(label_prices: pd.DataFrame, risk_level: float, reward_ratios: list) -> list:
     first_price = label_prices['price'].values[0]    
     tb_outcomes = []
     for side in ['long', 'short']:
@@ -45,7 +45,7 @@ def triple_barrier_outcomes(label_prices:pd.DataFrame, risk_level:float, reward_
     return tb_df
 
 
-def signed_outcomes_to_label(outcomes:pd.DataFrame) -> dict:
+def signed_outcomes_to_label(outcomes: pd.DataFrame) -> dict:
     outcomes = outcomes.dropna()
     if outcomes.shape[0] == 0: # no outcomes
         # print('neutral')
@@ -69,7 +69,7 @@ def signed_outcomes_to_label(outcomes:pd.DataFrame) -> dict:
     return label[0]
 
 
-def outcomes_to_label(outcomes:pd.DataFrame, price_end_at:pd._libs.tslibs.timestamps.Timestamp) -> dict:
+def outcomes_to_label(outcomes: pd.DataFrame, price_end_at: pd._libs.tslibs.timestamps.Timestamp) -> dict:
     long_outcomes = outcomes.loc[outcomes['label_side']=='long'].reset_index(drop=True)
     short_outcomes = outcomes.loc[outcomes['label_side']=='short'].reset_index(drop=True)
     long_label = signed_outcomes_to_label(long_outcomes)
@@ -89,7 +89,7 @@ def outcomes_to_label(outcomes:pd.DataFrame, price_end_at:pd._libs.tslibs.timest
     return label
 
 
-def get_trend_outcome(label_prices):
+def get_trend_outcome(label_prices: pd.DataFrame) -> dict:
     if len(label_prices) < 10:
         return {}
     df = label_prices.copy()
@@ -105,14 +105,14 @@ def get_trend_outcome(label_prices):
     return trend
 
 
-def get_label_ticks(ticks_df:pd.DataFrame, label_start_at:pd._libs.tslibs.timestamps.Timestamp, label_horizon_mins:int) -> pd.DataFrame:
-    price_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
+def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, label_horizon_mins: int) -> pd.DataFrame:
+    price_start_at = label_start_at + pd.Timedelta(value=4, unit='seconds') # inference+network latency compensation
     price_end_at = label_start_at + pd.Timedelta(value=label_horizon_mins, unit='minutes')
     label_prices = ticks_df.loc[(ticks_df['date_time'] >= price_start_at) & (ticks_df['date_time'] < price_end_at)]
     return label_prices,  price_end_at
 
 
-def label_bars(bars:list, ticks_df:pd.DataFrame, risk_level:float, label_horizon_mins:int, reward_ratios:list) -> list:
+def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, label_horizon_mins: int, reward_ratios: list) -> list:
 
     for idx, row in tqdm(enumerate(bars), total=len(bars)):
         label_prices, price_end_at = get_label_ticks(ticks_df, row['close_at'], label_horizon_mins)
@@ -123,3 +123,26 @@ def label_bars(bars:list, ticks_df:pd.DataFrame, risk_level:float, label_horizon
         bars[idx].update(trend)
 
     return bars
+
+
+def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
+    from mlfinlab_bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
+    from mlfinlab_concurrent import get_av_uniqueness_from_triple_barrier
+
+    samples_info_sets = lbars_df[['open_at', 'close_at']]
+    samples_info_sets = samples_info_sets.set_index('open_at')
+    samples_info_sets.columns = ['t1']
+
+    price_bars = lbars_df[['open_at', 'close_at', 'price_close']]
+    price_bars = price_bars.set_index('close_at')
+
+    label_avg_unq = get_av_uniqueness_from_triple_barrier(samples_info_sets, price_bars, num_threads=1)
+    ind_mat = get_ind_matrix(samples_info_sets, price_bars)
+    avg_unq_ind_mat = get_ind_mat_average_uniqueness(ind_mat)
+    results = {
+        'label_avg_unq': label_avg_unq,
+        'grand_avg_unq': label_avg_unq.mean(),
+        'ind_mat': ind_mat,
+        'ind_mat_avg_unq': avg_unq_ind_mat
+    }    
+    return results

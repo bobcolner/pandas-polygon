@@ -6,8 +6,8 @@ from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.results import S3Result
 from prefect.engine.executors import DaskExecutor, LocalExecutor
 import pandas as pd
-from polygon_backfill import get_open_market_dates, backfill_date_todf
-from s3_dataset import backfill_date_tos3
+from polygon_backfill import get_open_market_dates, date_df_to_file
+from s3_datasets import polygon_tick_date_to_s3
 
 
 @task(checkpoint=False)
@@ -16,7 +16,7 @@ def cross_product_task(x, y) -> list:
 
 
 @task(checkpoint=False)
-def requested_dates_task(start_date:str, end_date:str) -> list:
+def requested_dates_task(start_date: str, end_date: str) -> list:
     return get_open_market_dates(start_date, end_date)
 
 
@@ -25,7 +25,8 @@ def requested_dates_task(start_date:str, end_date:str) -> list:
     target="checkpoints/{tick_type}/symbol={symbol_date[0]}/date={symbol_date[1]}/data.prefect"
 )
 def backfill_task(symbol_date:tuple, tick_type:str) -> pd.DataFrame:
-    df = backfill_date_tos3(symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)        
+    df = polygon_tick_date_to_s3(symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)        
+    date_df_to_file(df=df, symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)
     return True
 
 
@@ -67,8 +68,8 @@ executor = DaskExecutor(
 
 flow_state = flow.run(
     executor=executor,
-    symbols=['DUST', 'GLD', 'SPY', 'QQQ'],
+    symbols=['GLD'],
     tick_type='trades',
-    start_date='2020-07-01',
+    start_date='2019-10-01',
     end_date=date.today().isoformat(),
 )

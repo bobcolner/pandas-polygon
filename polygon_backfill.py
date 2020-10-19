@@ -1,29 +1,13 @@
-import os
-from glob import glob
-import numpy as np
+from pathlib import Path
 import pandas as pd
-from pandas_market_calendars import get_calendar
-from polygon_rest_api import get_grouped_daily, get_stock_ticks
-
-
-def read_market_daily(result_path: str) -> pd.DataFrame:    
-    df = read_matching_files(glob_string=result_path+'/market_daily/*.feather', reader=pd.read_feather)
-    df = df.set_index(pd.to_datetime(df.date), drop=True)
-    df = df.drop(columns=['date'])
-    df = find_compleat_symbols(df, compleat_only=True)
-    df = df.sort_index()
-    return df
+from tqdm import tqdm
+from polygon_rest_api import get_market_date, get_stocks_ticks_date
+from polygon_s3 import get_s3fs_client
 
 
 def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
-    return pd.concat(map(reader, glob(os.path.join('', glob_string))), ignore_index=True)
-
-
-def get_open_market_dates(start_date: str, end_date: str) -> list:
-    market = get_calendar('NYSE')
-    schedule = market.schedule(start_date=start_date, end_date=end_date)
-    dates = [i.date().isoformat() for i in schedule.index]
-    return dates
+    from glob import glob
+    return pd.concat(map(reader, glob(path.join('', glob_string))), ignore_index=True)
 
 
 def validate_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -35,25 +19,9 @@ def validate_df(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError('df has fields with no values. Recent historic data may not be ready for consumption')
     else:
         return df
-
-
-def find_compleat_symbols(df: pd.DataFrame, active_days: int=1, compleat_only: bool=True) -> pd.DataFrame:
-    # count aviables days for each symbol
-    sym_count = df.groupby('symbol').count()['open']
-    print(df.symbol.value_counts().describe())
-    if compleat_only is True:
-        active_days = max(df.symbol.value_counts())
-    # filter symbols for active_days thresholdqa
-    passed_sym = sym_count[sym_count >= active_days].index
-    df_filtered = df[df.symbol.isin(passed_sym)]
-    return df_filtered
  
 
-def get_market_daily_df(daily: list) -> pd.DataFrame:
-    
-    if len(daily) < 1:
-        raise ValueError('get_grouped_daily() returned zero rows')
-
+def market_daily_to_df(daily: list) -> pd.DataFrame:    
     df = pd.DataFrame(daily, columns=['T', 'v', 'o', 'c', 'h', 'l', 'vw', 't'])
     df = df.rename(columns={'T': 'symbol',
                             'v': 'volume',
@@ -64,68 +32,20 @@ def get_market_daily_df(daily: list) -> pd.DataFrame:
                            'vw': 'vwap',
                             't': 'epoch'})
     # add datetime index
-    df = df.set_index(pd.to_datetime(df['epoch'] * 10**6).dt.normalize(), drop=True)
-    df = df.rename_axis(index='date')
+    df['date_time'] = pd.to_datetime(df['epoch'] * 10**6).dt.normalize()
+    # df = df.set_index(pd.to_datetime(df['epoch'] * 10**6).dt.normalize(), drop=True)
+    # df = df.rename_axis(index='date')
     df = df.drop(columns='epoch')
     # fix vwap
     mask = ~(df.vwap.between(df.low, df.high)) # vwap outside the high/low range
-    df.loc[mask, 'vwap'] = df.loc[mask, 'close']
+    df.loc[mask, 'vwap'] = df.loc[mask, 'close'] # replace bad vwap with close price
     # add dollar total
     df['dollar_total'] = df['vwap'] * df['volume']
     # optimze datatypes
     df['volume'] = df['volume'].astype('uint64')
     for col in ['dollar_total', 'vwap', 'open', 'close', 'high', 'low']:
         df[col] = df[col].astype('float32')
-
     return df
-
-
-def add_cond_filter(ticks: list) -> list:
-    green_conditions = [0, 1, 3, 4, 8, 9, 11, 14, 23, 25, 27, 28, 30, 36, 41]
-    irregular_conditions = [2, 5, 7, 10, 13, 15, 16, 20, 21, 22, 29, 33, 38, 52, 53]
-    blank_conditions = [6, 17, 18, 19, 24, 26, 32, 35, 39, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 54, 55, 56, 57]
-    for idx, tick in enumerate(ticks):
-        if 'c' in tick:
-            ticks[idx]['green'] = any(np.isin(tick['c'], green_conditions))
-            ticks[idx]['irregular'] = any(np.isin(tick['c'], irregular_conditions))
-            ticks[idx]['blank'] = any(np.isin(tick['c'], blank_conditions))
-            ticks[idx]['afterhours'] = any(np.isin(tick['c'], 12))
-            ticks[idx]['odd_lot'] = any(np.isin(tick['c'], 37))
-        else:
-            ticks[idx]['green'] = False
-            ticks[idx]['irregular'] = False
-            ticks[idx]['blank'] = True
-            ticks[idx]['afterhours'] = False
-            ticks[idx]['odd_lot'] = False
-    return ticks
-
-
-def get_ticks_date(symbol: str, date: str, tick_type: str) -> list:
-    last_tick = None
-    limit = 50000
-    ticks = []
-    run = True
-    while run == True:
-        # get batch of ticks
-        ticks_batch = get_stock_ticks(symbol, date, tick_type, timestamp_first=last_tick, limit=limit)
-        # filter ticks
-        ticks_batch = add_cond_filter(ticks_batch)
-        # update last_tick
-        if len(ticks_batch) < 1: # empty tick batch
-            run = False
-        last_tick = ticks_batch[-1]['y'] # exchange ts
-        # logging
-        last_tick_time = pd.to_datetime(last_tick, utc=True, unit='ns').tz_convert('America/New_York')
-        print('Downloaded: ', len(ticks_batch), symbol, 'ticks; latest time(NYC): ', last_tick_time)
-        # append batch to ticks list
-        ticks = ticks + ticks_batch
-        # check if we are done pulling ticks
-        if len(ticks_batch) < limit:
-            run = False
-        elif len(ticks_batch) == limit:
-            del ticks[-1] # drop last row to avoid dups
-
-    return ticks
 
 
 def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
@@ -172,20 +92,143 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
         df['bid_exchange_id'] = df['bid_exchange_id'].astype('uint8')
         df['ask_exchange_id'] = df['ask_exchange_id'].astype('uint8')
     
-    # cast datetimes
+    # cast datetimes (for both trades+quotes)
     df['sequence'] = df['sequence'].astype('uint32')
     df['sip_dt'] = pd.to_datetime(df['sip_epoch'], unit='ns')
     df['exchange_dt'] = pd.to_datetime(df['exchange_epoch'], unit='ns')
     # drop columns
     df = df.drop(columns=['tape', 'sip_epoch', 'exchange_epoch'])
+    return df.reset_index(drop=True)
+
+
+def med_filter(df: pd.DataFrame, window: int=5, zthresh: int=10) -> pd.DataFrame:
+    df['filter'] = df['price'].rolling(window, center=False, min_periods=1).median()
+    df['filter_diff'] = abs(df['price'] - df['filter'])
+    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
+    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
+
+
+def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
+    # get origional number of ticks
+    og_tick_count = df.shape[0]
+    # drop irrgular trade conditions
+    df = df.loc[df.irregular==False]
+    # drop trades with >1sec timestamp diff
+    dt_diff = (df.sip_dt - df.exchange_dt)
+    df = df.loc[dt_diff < pd.to_timedelta(1, unit='S')]
+    # add median filter and remove outlier trades
+    df = med_filter(df, window=5, zthresh=10)
+    # remove duplicate trades
+    num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
+    if num_dups > 0: 
+        print(num_dups, 'duplicated trade removed')
+        df = df.drop_duplicates(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size'])
+    # drop trades with zero size/volume
+    df = df.loc[df['size'] > 0]
+    droped_rows = og_tick_count - df.shape[0]
+    print('dropped', droped_rows, 'ticks (', round((droped_rows / og_tick_count) * 100, 2), '%)')
+    # sort df
+    df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
+    if small:
+        df = df[['sip_dt', 'price', 'size']]
+        return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)
+    else:
+        return df.reset_index(drop=True)
+
+
+def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades', clean: bool=True, small: bool=True) -> pd.DataFrame:
+    ticks = get_stocks_ticks_date(symbol, date, tick_type)
+    df = ticks_to_df(ticks, tick_type)
+    if tick_type == 'trades' and clean:
+        df = clean_trades_df(df, small)
+    return validate_df(df)
+
+
+def get_market_date_df(date: str) -> pd.DataFrame:
+    daily = get_market_date(locale='us', market='stocks', date=date)
+    if len(daily) < 1:
+        raise ValueError('get_market_date returned zero rows')
+    return market_daily_to_df(daily)  
+
+
+def date_to_file_and_s3(df: pd.DataFrame, symbol:str, date:str, tick_type: str, result_path: str, s3fs=None) -> str:
+    if tick_type is None:
+        tick_type = 'daily'
+    full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
+    Path(full_path).mkdir(parents=True, exist_ok=True)
+    # save to local file
+    df.to_feather(full_path + 'data.feather', version=2)
+    if bool(s3fs): # upload to s3/b2
+        print('updating', date, 'to s3/b2')
+        s3fs.put(full_path + 'data.feather', f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    return full_path + 'data.feather'
+
+
+def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, upload_to_s3=False) -> pd.DataFrame:
+    if upload_to_s3:
+        s3fs = get_s3fs_client()
+    
+    if symbol == 'market':
+        df = get_market_date_df(date)
+    else: # get tick data
+        df = get_ticks_date_df(symbol, date, tick_type)
+    
+    local_path = date_to_file_and_s3(df, symbol, date, tick_type, result_path, s3fs)
+    print(local_path)
     return df
 
 
-def backfill_date_todf(symbol: str, date: str, tick_type: str='trades') -> pd.DataFrame:
-    if symbol == 'market_daily':
-        daily = get_grouped_daily(locale='us', market='stocks', date=date)
-        df = get_market_daily_df(daily)
+def get_open_market_dates(start_date: str, end_date: str) -> list:
+    from pandas_market_calendars import get_calendar
+    market = get_calendar('NYSE')
+    schedule = market.schedule(start_date=start_date, end_date=end_date)
+    dates = [i.date().isoformat() for i in schedule.index]
+    return dates
+
+
+def dates_from_path(symbol: str, tick_type: str, result_path: str) -> list:
+    from os import listdir
+    # assumes 'hive' {date}={yyyy-mm-dd}/data.{format} filename template
+    dates_path = f"{result_path}/{tick_type}/symbol={symbol}"
+    if Path(dates_path).exists():    
+        file_list = listdir(dates_path)
+        if '.DS_Store' in file_list:
+            file_list.remove('.DS_Store')
+        existing_dates = [i.split('=')[1] for i in file_list]
     else:
-        ticks = get_ticks_date(symbol, date, tick_type)
-        df = ticks_to_df(ticks, tick_type)    
-    return validate_df(df)
+        existing_dates = []
+    return existing_dates
+
+
+def dates_from_s3(symbol: str, tick_type: str='trades'):
+    s3fs = get_s3fs_client()
+    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
+    remaining_dates = [path.split('date=')[1] for path in paths]
+    return remaining_dates
+
+
+def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
+    from datetime import date
+    existing_dates_set = set(existing_dates)
+    remaining_dates = [x for x in request_dates if x not in existing_dates_set and x <= date.today().isoformat()]
+    return remaining_dates
+
+
+def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str=None, upload_to_s3: bool=False) -> str:
+    
+    request_dates = get_open_market_dates(start_date, end_date)
+    print('requested', len(request_dates), 'dates')
+    
+    if upload_to_s3:
+        existing_dates = dates_from_s3(symbol, tick_type)
+    else:
+        existing_dates = dates_from_path(symbol, tick_type, result_path)
+
+    if existing_dates is not None:
+        request_dates = find_remaining_dates(request_dates, existing_dates)
+    
+    print(len(request_dates), 'remaining dates')
+    
+    for date in tqdm(request_dates):
+        print('fetching:', date)
+        local_path = backfill_date(symbol, date, tick_type, result_path, upload_to_s3)

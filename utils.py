@@ -260,3 +260,9 @@ def load_ticks(symbol:str, date:str, tick_type='trades', clean=True) -> pd.DataF
         df = clean_trades_df(df)
 
     return df
+
+
+
+
+last_tick_time = pd.to_datetime(last_tick, utc=True, unit='ns').tz_convert('America/New_York')
+print('Downloaded:', len(ticks_batch), symbol, 'ticks; latest tick timestamp(NYC):', last_tick_time)

@@ -10,6 +10,18 @@ def read_market_daily(result_path:str) -> pd.DataFrame:
     return df
 
 
+def find_compleat_market_symbols(df: pd.DataFrame, active_days: int=1, compleat_only: bool=True) -> pd.DataFrame:
+    # count aviables days for each symbol
+    sym_count = df.groupby('symbol').count()['open']
+    print(df.symbol.value_counts().describe())
+    if compleat_only is True:
+        active_days = max(df.symbol.value_counts())
+    # filter symbols for active_days threshold
+    passed_sym = sym_count.loc[sym_count >= active_days].index
+    df_filtered = df.loc[df.symbol.isin(passed_sym)]
+    return df_filtered
+
+
 def plot_daily_symbols(df:pd.DataFrame, symbols=['SPY', 'QQQ'], metric='vwap') -> pd.DataFrame:
     fdf = df[['symbol', metric]][df.symbol.isin(symbols)]
     pdf = fdf.pivot(columns='symbol', values=metric)

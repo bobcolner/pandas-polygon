@@ -1,4 +1,5 @@
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 import pandas as pd
 from tqdm import tqdm
 from polygon_rest_api import get_market_date, get_stocks_ticks_date
@@ -148,34 +149,40 @@ def get_market_date_df(date: str) -> pd.DataFrame:
     daily = get_market_date(locale='us', market='stocks', date=date)
     if len(daily) < 1:
         raise ValueError('get_market_date returned zero rows')
-    return market_daily_to_df(daily)  
+    return market_daily_to_df(daily)
 
 
-def date_to_file_and_s3(df: pd.DataFrame, symbol:str, date:str, tick_type: str, result_path: str, s3fs=None) -> str:
-    if tick_type is None:
-        tick_type = 'daily'
-    full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
-    Path(full_path).mkdir(parents=True, exist_ok=True)
-    # save to local file
-    df.to_feather(full_path + 'data.feather', version=2)
-    if bool(s3fs): # upload to s3/b2
-        print('updating', date, 'to s3/b2')
-        s3fs.put(full_path + 'data.feather', f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
-    return full_path + 'data.feather'
-
-
-def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, upload_to_s3=False) -> pd.DataFrame:
+def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False, return_df=False) -> pd.DataFrame:
+    
     if upload_to_s3:
         s3fs = get_s3fs_client()
-    
+
     if symbol == 'market':
         df = get_market_date_df(date)
     else: # get tick data
         df = get_ticks_date_df(symbol, date, tick_type)
     
-    local_path = date_to_file_and_s3(df, symbol, date, tick_type, result_path, s3fs)
-    print(local_path)
-    return df
+    if tick_type is None:
+        tick_type = 'daily'
+
+    if save_local: # save to local file
+        full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
+        Path(full_path).mkdir(parents=True, exist_ok=True)
+        file_path = full_path + 'data.feather'
+        df.to_feather(path=file_path, version=2)
+    else:
+        with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+            file_path = tmp_ref1.name
+            df.to_feather(path=file_path, version=2)
+    
+    if upload_to_s3: # upload to s3/b2
+        print('Uploading', symbol, date, 'to s3/b2')
+        s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+
+    if return_df:
+        return df
+    else:
+        return file_path
 
 
 def get_open_market_dates(start_date: str, end_date: str) -> list:
@@ -214,7 +221,7 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     return remaining_dates
 
 
-def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str=None, upload_to_s3: bool=False) -> str:
+def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, upload_to_s3=False):
     
     request_dates = get_open_market_dates(start_date, end_date)
     print('requested', len(request_dates), 'dates')

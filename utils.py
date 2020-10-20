@@ -248,21 +248,29 @@ def dates_from_path(dates_path:str, date_partition:str) -> list:
         return existing_dates
 
 
-def load_ticks(symbol:str, date:str, tick_type='trades', clean=True) -> pd.DataFrame:
-    try:
-        print('trying to get ticks from s3...')
-        df = s3d.get_tick_df(symbol, date, tick_type)
-    except FileNotFoundError:
-        print('needed todownload ticks from polygon API')
-        df = s3d.backfill_date_tos3(symbol, date, tick_type)
-    
-    if tick_type == 'trades' and clean:
-        df = clean_trades_df(df)
-
-    return df
-
-
 
 
 last_tick_time = pd.to_datetime(last_tick, utc=True, unit='ns').tz_convert('America/New_York')
 print('Downloaded:', len(ticks_batch), symbol, 'ticks; latest tick timestamp(NYC):', last_tick_time)
+
+from dask.distributed import Client, progress, fire_and_forget
+client = Client(threads_per_worker=4, n_workers=4)
+
+request_dates = get_open_market_dates(start_date, end_date)
+futures = []
+for symbol in symbols: 
+    existing_dates = dates_from_s3(symbol, tick_type)
+    remaining_dates = find_remaining_dates(request_dates, existing_dates)
+    for date in remaining_dates:
+        result = client.submit(
+            backfill_date,
+            symbol=symbol, 
+            date=date, 
+            tick_type=tick_type, 
+            result_path=result_path,
+            save_local=True,
+            upload_to_s3=True,
+        )
+        futures.append(result)
+        
+client.gather(futures)

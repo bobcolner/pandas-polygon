@@ -151,7 +151,7 @@ def get_stocks_ticks_date(symbol: str, date: str, tick_type: str) -> list:
             run = False
         last_tick = ticks_batch[-1]['y'] # exchange ts
         # logging
-        print('Downloaded:', len(ticks_batch), symbol, 'ticks')
+        print('Downloaded:', len(ticks_batch), symbol, 'ticks', date)
         # append batch to ticks list
         ticks = ticks + ticks_batch
         # check if we are done pulling ticks

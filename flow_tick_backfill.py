@@ -4,10 +4,9 @@ from itertools import product
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.results import S3Result
-from prefect.engine.executors import DaskExecutor, LocalExecutor
+from prefect.engine.executors import DaskExecutor, LocalExecutor, LocalDaskExecutor
 import pandas as pd
-from polygon_backfill import get_open_market_dates, date_df_to_file
-from s3_datasets import polygon_tick_date_to_s3
+from polygon_backfill import get_open_market_dates, backfill_date
 
 
 @task(checkpoint=False)
@@ -25,8 +24,14 @@ def requested_dates_task(start_date: str, end_date: str) -> list:
     target="checkpoints/{tick_type}/symbol={symbol_date[0]}/date={symbol_date[1]}/data.prefect"
 )
 def backfill_task(symbol_date:tuple, tick_type:str) -> pd.DataFrame:
-    df = polygon_tick_date_to_s3(symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)        
-    date_df_to_file(df=df, symbol=symbol_date[0], date=symbol_date[1], tick_type=tick_type)
+    df = backfill_date(
+        symbol=symbol_date[0],
+        date=symbol_date[1],
+        tick_type=tick_type,
+        result_path='/Users/bobcolner/QuantClarity/pandas-polygon/data', 
+        upload_to_s3=True,
+        save_local=True
+        )
     return True
 
 
@@ -47,9 +52,9 @@ with Flow(name='backfill-flow', result=result_store) as flow:
     tick_type = Parameter('tick_type', default='trades')
     symbols = Parameter('symbols', default=['GLD'])
 
-    req_dates = requested_dates_task(start_date, end_date)
+    request_dates = requested_dates_task(start_date, end_date)
 
-    symbol_date_list = cross_product_task(symbols, req_dates)
+    symbol_date_list = cross_product_task(symbols, request_dates)
 
     backfill_task_result = backfill_task.map(
         symbol_date=symbol_date_list,
@@ -58,18 +63,22 @@ with Flow(name='backfill-flow', result=result_store) as flow:
 
 
 # executor = LocalExecutor()
+# executor = LocalDaskExecutor(scheduler='threads')
 executor = DaskExecutor(
     cluster_kwargs={
         'n_workers': cpu_count(),
         'processes': True,
-        'threads_per_worker': 4
+        'threads_per_worker': 8
     }
 )
 
-flow_state = flow.run(
-    executor=executor,
-    symbols=['GLD'],
-    tick_type='trades',
-    start_date='2019-10-01',
-    end_date=date.today().isoformat(),
-)
+
+if __name__ == '__main__':
+
+    flow_state = flow.run(
+        executor=executor,
+        symbols=['GLD'],
+        tick_type='trades',
+        start_date='2020-01-01',
+        end_date=date.today().isoformat(),
+    )

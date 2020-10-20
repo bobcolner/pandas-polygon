@@ -21,7 +21,9 @@ dependencies:
   - distributed
   - cachey
   - prefect[viz, gcp, aws]
+  - boto3
   - requests
+  - fsspec
   - s3fs
   - tqdm
   - matplotlib
@@ -32,3 +34,4 @@ dependencies:
     - pandas-bokeh
     - finplot
     - ray
+    - tenacity

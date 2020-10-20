@@ -218,13 +218,13 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     return remaining_dates
 
 
-def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, upload_to_s3=False):
+def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, save_local=True, upload_to_s3=True):
     
     request_dates = get_open_market_dates(start_date, end_date)
     print('requested', len(request_dates), 'dates')
     
     if upload_to_s3:
-        existing_dates = ps3.get_symbol_dates(symbol, tick_type)
+        existing_dates = get_symbol_dates(symbol, tick_type)
     else:
         existing_dates = dates_from_path(symbol, tick_type, result_path)
 
@@ -235,4 +235,4 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
     
     for date in tqdm(request_dates):
         print('fetching:', date)
-        backfill_date(symbol, date, tick_type, result_path, save_local=True, upload_to_s3=False, return_df=False)
+        backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)

@@ -3,12 +3,13 @@ from io import BytesIO
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import pandas as pd
-from fsspec import filesystem
-from s3fs import S3FileSystem
+from pyarrow.dataset import dataset, field
+from pyarrow._dataset import FileSystemDataset
 
 
 def get_s3fs_client(cached: bool=False):
     if cached:
+        from fsspec import filesystem
         # https://filesystem-spec.readthedocs.io/
         s3fs = filesystem(
             protocol='filecache',
@@ -21,6 +22,7 @@ def get_s3fs_client(cached: bool=False):
             # cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
             )
     else:
+        from s3fs import S3FileSystem
         s3fs = S3FileSystem(
                 key=environ['B2_ACCESS_KEY_ID'], 
                 secret=environ['B2_SECRET_ACCESS_KEY'], 
@@ -78,7 +80,7 @@ def date_df_to_file(df: pd.DataFrame, symbol:str, date:str, tick_type: str, resu
 def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') -> pd.DataFrame:
     try:
         print('trying to get ticks from local file...')
-        df = pd.read_feather(local_path + f"{tick_type}/symbol={symbol}/date={date}/data.feather")
+        df = pd.read_feather(local_path + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
     except FileNotFoundError:
         try:
             print('trying to get ticks from s3...')
@@ -89,4 +91,40 @@ def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') ->
         finally:
             print('saving ticks to local file')
             path = date_df_to_file(df, symbol, date, tick_type, local_path)
+    return df
+
+
+def get_s3_dataset() -> FileSystemDataset:
+    from pyarrow.fs import S3FileSystem
+    s3  = S3FileSystem(
+        access_key=environ['B2_ACCESS_KEY_ID'],
+        secret_key=environ['B2_SECRET_ACCESS_KEY'],
+        endpoint_override=environ['B2_ENDPOINT_URL']
+    )
+    ds = dataset(
+        source='polygon-equities/data/trades/',
+        format='feather',
+        filesystem=s3,
+        partitioning='hive',
+        exclude_invalid_files=True
+    )
+    return ds
+
+
+def get_local_dataset(result_path: str) -> FileSystemDataset:
+    ds = dataset(
+        source=result_path,
+        format='feather',
+        partitioning='hive',
+        exclude_invalid_files=True
+    )
+    return ds
+
+
+def dataset_to_df(ds: FileSystemDataset, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+    
+    filter_exp = (field('date') >= start_date) & \
+        (field('date') <= end_date) & \
+        (field('symbol') == symbol)
+    df = ds.to_table(filter=filter_exp).to_pandas()
     return df

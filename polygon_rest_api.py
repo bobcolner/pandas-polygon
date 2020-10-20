@@ -151,7 +151,7 @@ def get_stocks_ticks_date(symbol: str, date: str, tick_type: str) -> list:
             print('Empty Batch!', batch, symbol, date)
             run = False
             continue
-        # filter ticks
+        # add conditions groups    
         ticks_batch = add_condition_groups(ticks_batch)
         # update last_tick
         last_tick = ticks_batch[-1]['t'] # sip ts

@@ -21,15 +21,15 @@ def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list, ti
 
 
 @task(max_retries=1, retry_delay=timedelta(seconds=3))
-def backfill_task(symbol_date:tuple, tick_type:str):
-    df = backfill_date(
+def backfill_date_task(symbol_date:tuple, tick_type:str):
+    backfill_date(
         symbol=symbol_date[0],
         date=symbol_date[1],
         tick_type=tick_type,
         result_path='/Users/bobcolner/QuantClarity/pandas-polygon/data', 
         upload_to_s3=True,
         save_local=True
-        )
+    )
     return True
 
 
@@ -42,7 +42,7 @@ with Flow(name='backfill-flow') as flow:
 
     symbol_date_list = get_remaining_symbol_dates(start_date, end_date, symbols, tick_type)
 
-    backfill_task_result = backfill_task.map(
+    backfill_date_task_result = backfill_date_task.map(
         symbol_date=symbol_date_list,
         tick_type=unmapped(tick_type)
     )
@@ -51,9 +51,9 @@ with Flow(name='backfill-flow') as flow:
 # executor = LocalExecutor()
 executor = DaskExecutor(
     cluster_kwargs={
-        'n_workers': cpu_count()-1,
-        'processes': True,
-        'threads_per_worker': 4
+        'n_workers': 2,
+        'processes': False,
+        'threads_per_worker': 1
     }
 )
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
     flow_state = flow.run(
         executor=executor,
-        symbols=['PASS', 'GOLD', 'FSM', 'SPY', 'GLD', 'GDX'],
+        symbols=['GOLD', 'FSM', 'SPY', 'GLD', 'GDX'],
         tick_type='trades',
         start_date='2020-01-01',
         end_date=(date.today() - timedelta(days=1)).isoformat(), # yesterday

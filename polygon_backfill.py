@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 import pandas as pd
 from tqdm import tqdm
 from polygon_rest_api import get_market_date, get_stocks_ticks_date
-from polygon_s3 import get_s3fs_client
+from polygon_s3 import get_s3fs_client, get_symbol_dates
 
 
 def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
@@ -139,7 +139,10 @@ def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
 
 def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades', clean: bool=True, small: bool=True) -> pd.DataFrame:
     ticks = get_stocks_ticks_date(symbol, date, tick_type)
-    df = ticks_to_df(ticks, tick_type)
+    if len(ticks) < 1:
+        return pd.DataFrame() # return empty df
+    else:    
+        df = ticks_to_df(ticks, tick_type)
     if tick_type == 'trades' and clean:
         df = clean_trades_df(df, small)
     return validate_df(df)
@@ -152,7 +155,7 @@ def get_market_date_df(date: str) -> pd.DataFrame:
     return market_daily_to_df(daily)
 
 
-def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False, return_df=False) -> pd.DataFrame:
+def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
     
     if upload_to_s3:
         s3fs = get_s3fs_client()
@@ -161,6 +164,9 @@ def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save
         df = get_market_date_df(date)
     else: # get tick data
         df = get_ticks_date_df(symbol, date, tick_type)
+        if len(df) < 1:
+            print('No Data for', symbol, date)
+            return df
     
     if tick_type is None:
         tick_type = 'daily'
@@ -169,6 +175,7 @@ def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save
         full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
         Path(full_path).mkdir(parents=True, exist_ok=True)
         file_path = full_path + 'data.feather'
+        print('Saving:', symbol, date, 'to local file')
         df.to_feather(path=file_path, version=2)
     else:
         with NamedTemporaryFile(mode='w+b') as tmp_ref1:
@@ -176,13 +183,10 @@ def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save
             df.to_feather(path=file_path, version=2)
     
     if upload_to_s3: # upload to s3/b2
-        print('Uploading', symbol, date, 'to s3/b2')
+        print('Uploading:', symbol, date, 'to S3/B2')
         s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
-    if return_df:
-        return df
-    else:
-        return file_path
+    return df
 
 
 def get_open_market_dates(start_date: str, end_date: str) -> list:
@@ -207,13 +211,6 @@ def dates_from_path(symbol: str, tick_type: str, result_path: str) -> list:
     return existing_dates
 
 
-def dates_from_s3(symbol: str, tick_type: str='trades'):
-    s3fs = get_s3fs_client()
-    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
-    remaining_dates = [path.split('date=')[1] for path in paths]
-    return remaining_dates
-
-
 def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     from datetime import date
     existing_dates_set = set(existing_dates)
@@ -227,7 +224,7 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
     print('requested', len(request_dates), 'dates')
     
     if upload_to_s3:
-        existing_dates = dates_from_s3(symbol, tick_type)
+        existing_dates = ps3.get_symbol_dates(symbol, tick_type)
     else:
         existing_dates = dates_from_path(symbol, tick_type, result_path)
 
@@ -238,4 +235,4 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
     
     for date in tqdm(request_dates):
         print('fetching:', date)
-        local_path = backfill_date(symbol, date, tick_type, result_path, upload_to_s3)
+        backfill_date(symbol, date, tick_type, result_path, save_local=True, upload_to_s3=False, return_df=False)

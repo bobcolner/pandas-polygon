@@ -140,18 +140,23 @@ def get_stocks_ticks_date(symbol: str, date: str, tick_type: str) -> list:
     last_tick = None
     limit = 50000
     ticks = []
+    batch = 0
     run = True
     while run == True:
         # get batch of ticks
+        batch += 1
+        print('Batch#:', batch, symbol, date)
         ticks_batch = get_stock_ticks_batch(symbol, date, tick_type, timestamp_first=last_tick, limit=limit)
+        if len(ticks_batch) < 1: # empty tick batch
+            print('Empty Batch!', batch, symbol, date)
+            run = False
+            continue
         # filter ticks
         ticks_batch = add_condition_groups(ticks_batch)
         # update last_tick
-        if len(ticks_batch) < 1: # empty tick batch
-            run = False
-        last_tick = ticks_batch[-1]['y'] # exchange ts
+        last_tick = ticks_batch[-1]['t'] # sip ts
         # logging
-        print('Downloaded:', len(ticks_batch), symbol, 'ticks', date)
+        print('Downloaded:', len(ticks_batch), 'ticks', symbol, date)
         # append batch to ticks list
         ticks = ticks + ticks_batch
         # check if we are done pulling ticks

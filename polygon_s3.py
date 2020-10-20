@@ -32,11 +32,26 @@ def get_s3fs_client(cached: bool=False):
 s3fs = get_s3fs_client(cached=False)
 
 
-def list_symbol_dates(symbol: str, tick_type: str='trades') -> str:
-    return s3fs.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
+def get_symbol_dates(symbol: str, tick_type: str='trades') -> str:
+    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
+    return [path.split('date=')[1] for path in paths]
 
 
-def put_date_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+def get_symbols(tick_type: str='trades') -> str:
+    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/", refresh=True)
+    return [path.split('symbol=')[1] for path in paths]
+
+
+def remove_symbol(symbol: str, tick_type: str):
+    path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
+    s3fs.rm(path, recursive=True)
+
+def find_symbol_storage_used(symbol: str, tick_type: str) -> dict:
+    path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
+    return s3fs.du(path)
+
+
+def put_date_df_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     df = get_ticks_date_df(symbol, date, tick_type)
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
@@ -44,7 +59,7 @@ def put_date_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     return df
 
 
-def get_date_from_s3(symbol: str, date: str, tick_type: str='trades', columns=None) -> pd.DataFrame:    
+def get_date_df_from_s3(symbol: str, date: str, tick_type: str='trades', columns=None) -> pd.DataFrame:    
     byte_data = s3fs.cat(f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
     if columns:
         df = pd.read_feather(BytesIO(byte_data), columns=columns)
@@ -67,10 +82,10 @@ def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') ->
     except FileNotFoundError:
         try:
             print('trying to get ticks from s3...')
-            df = get_date_from_s3(symbol, date, tick_type)
+            df = get_date_df_from_s3(symbol, date, tick_type)
         except FileNotFoundError:
             print('trying to get ticks from polygon API and save to s3...')
-            df = put_date_to_s3(symbol, date, tick_type)
+            df = put_date_df_to_s3(symbol, date, tick_type)
         finally:
             print('saving ticks to local file')
             path = date_df_to_file(df, symbol, date, tick_type, local_path)

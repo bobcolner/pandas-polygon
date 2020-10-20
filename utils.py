@@ -274,3 +274,11 @@ for symbol in symbols:
         futures.append(result)
         
 client.gather(futures)
+
+# sort symbol-date tuples
+sort symbol-date pairs by date
+sd_df = pd.DataFrame(symbol_dates).sort_values(1)
+sd_d = sd_df.to_dict(orient='records')
+symbol_dates = []
+for row in sd_d:
+    symbol_dates.append((row[0], row[1]))

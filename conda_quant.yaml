@@ -5,8 +5,6 @@ channels:
 dependencies:
   - python = 3.7
   - mkl
-  - numba
-  - numexpr
   - numpy
   - scipy
   - scikit-learn
@@ -20,6 +18,7 @@ dependencies:
   - dask
   - distributed
   - cachey
+  - tenacity
   - prefect[viz, gcp, aws]
   - boto3
   - requests
@@ -31,7 +30,7 @@ dependencies:
   - bokeh
   - pip
   - pip:
+    - pandas-ta
     - pandas-bokeh
     - finplot
     - ray
-    - tenacity

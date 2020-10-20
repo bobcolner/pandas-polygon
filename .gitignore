@@ -1,13 +1,12 @@
 *.pyc
 __pycache__/*
-__pycache__
 .ipynb_checkpoints/*
 .DS_Store
 bokeh_output.html
 *.feather
 *.parquet
+*.csv
 .Rhistory
 data/*
 dask-worker-space/*
-.empty/*
 joblib/*

@@ -123,8 +123,7 @@ def get_local_dataset(result_path: str) -> FileSystemDataset:
 
 def dataset_to_df(ds: FileSystemDataset, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     
-    filter_exp = (field('date') >= start_date) & \
-        (field('date') <= end_date) & \
-        (field('symbol') == symbol)
-    df = ds.to_table(filter=filter_exp).to_pandas()
-    return df
+    filter_exp = (field('symbol') == symbol) & \
+        (field('date') >= start_date) & (field('date') <= end_date)
+
+    return ds.to_table(filter=filter_exp).to_pandas()

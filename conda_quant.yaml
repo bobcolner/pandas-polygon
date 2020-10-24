@@ -9,6 +9,7 @@ dependencies:
   - scipy
   - scikit-learn
   - statsmodels
+  - pandas_ta
   - pyarrow >=1.0
   - pandas >=1.1
   - pandas_market_calendars
@@ -28,6 +29,7 @@ dependencies:
   - matplotlib
   - graphviz
   - bokeh
+  - qgrid
   - pip
   - pip:
     - pandas-ta

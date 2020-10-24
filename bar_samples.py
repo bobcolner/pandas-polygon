@@ -53,9 +53,9 @@ def reset_state(thresh: dict={}) -> dict:
     state['price_max'] = 0
     state['price_range'] = 0
     state['bar_return'] = 0
-    state['tick_count'] = 0
-    state['volume_sum'] = 0
-    state['dollar_sum'] = 0
+    state['ticks'] = 0
+    state['volume'] = 0
+    state['dollars'] = 0
     state['tick_imbalance'] = 0
     state['volume_imbalance'] = 0
     state['dollar_imbalance'] = 0
@@ -102,12 +102,12 @@ def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
 
     if 'duration_sec' in state['thresh'] and state['duration_sec'] > state['thresh']['duration_sec']:
         state['trigger_yet?!'] = 'duration'
-    if 'ticks' in state['thresh'] and state['tick_count'] >= state['thresh']['ticks']:
+    if 'ticks' in state['thresh'] and state['ticks'] >= state['thresh']['ticks']:
         state['trigger_yet?!'] = 'tick_coumt'
-    if 'volume' in state['thresh'] and state['volume_sum'] >= state['thresh']['volume']:
-        state['trigger_yet?!'] = 'volume_sum'
-    if 'dollar' in state['thresh'] and state['dollar_sum'] >= state['thresh']['dollar']:
-        state['trigger_yet?!'] = 'dollar_sum'
+    if 'volume' in state['thresh'] and state['volume'] >= state['thresh']['volume']:
+        state['trigger_yet?!'] = 'volume'
+    if 'dollar' in state['thresh'] and state['dollars'] >= state['thresh']['dollar']:
+        state['trigger_yet?!'] = 'dollars'
     if 'tick_imbalance' in state['thresh'] and abs(state['tick_imbalance']) >= state['thresh']['tick_imbalance']:
         state['trigger_yet?!'] = 'tick_imbalance'
     if 'volume_imbalance' in state['thresh'] and abs(state['volume_imbalance']) >= state['thresh']['volume_imbalance']:
@@ -128,7 +128,7 @@ def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
     # override newbar trigger with 'less-then' thresholds
     if 'min_duration_sec' in state['thresh'] and state['duration_sec'] < state['thresh']['min_duration_sec']:
         state['trigger_yet?!'] = 'waiting'
-    if 'min_tick_count' in state['thresh'] and state['tick_count'] < state['thresh']['min_tick_count']:
+    if 'min_ticks' in state['thresh'] and state['ticks'] < state['thresh']['min_ticks']:
         state['trigger_yet?!'] = 'waiting'
 
     return state
@@ -136,7 +136,7 @@ def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
 
 def output_new_bar(state: dict) -> dict:
     new_bar = {}
-    if state['tick_count'] == 0:
+    if state['ticks'] == 0:
         return new_bar
     new_bar['bar_trigger'] = state['trigger_yet?!']
     # time
@@ -166,9 +166,9 @@ def output_new_bar(state: dict) -> dict:
     new_bar['price_wmean'] = dsw.mean
     new_bar['price_wstd'] = dsw.std
     # tick/vol/dollar/imbalance
-    new_bar['tick_count'] = state['tick_count']
-    new_bar['volume_sum'] = state['volume_sum']
-    new_bar['dollar_sum'] = state['dollar_sum']
+    new_bar['ticks'] = state['ticks']
+    new_bar['volume'] = state['volume']
+    new_bar['dollars'] = state['dollars']
     new_bar['tick_imbalance'] = state['tick_imbalance']
     new_bar['volume_imbalance'] = state['volume_imbalance']
     new_bar['dollar_imbalance'] = state['dollar_imbalance']
@@ -198,9 +198,9 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
     state = imbalance_runs(state)
     # state['tick_latency_td'] = datetime.datetime.utcnow() - state['trades']['date_time'][0] # network latency (real-time only)
     state['duration_sec'] = (tick['date_time'].value - state['trades']['date_time'][0].value) // 10**9
-    state['tick_count'] += 1
-    state['volume_sum'] += tick['volume']
-    state['dollar_sum'] += tick['price'] * tick['volume']
+    state['ticks'] += 1
+    state['volume'] += tick['volume']
+    state['dollars'] += tick['price'] * tick['volume']
     state['price_min'] = tick['price'] if tick['price'] < state['price_min'] else state['price_min']
     state['price_max'] = tick['price'] if tick['price'] > state['price_max'] else state['price_max']
     state['price_range'] = state['price_max'] - state['price_min']
@@ -235,7 +235,8 @@ def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
 def build_bars(ticks_df:pd.DataFrame, thresh: dict):
     state = reset_state(thresh)
     output_bars = []
-    for row in tqdm(ticks_df.itertuples(), total=ticks_df.shape[0]):
+    # for row in tqdm(ticks_df.itertuples(), total=ticks_df.shape[0]):
+    for row in ticks_df.itertuples():
         tick = {
             'date_time': row.date_time,
             'price': row.price,
@@ -243,3 +244,17 @@ def build_bars(ticks_df:pd.DataFrame, thresh: dict):
         }
         output_bars, state = update_state_and_bars(tick, state, output_bars, thresh)
     return output_bars, state
+
+
+def fill_gap_renko(bar_1: dict, bar_2: dict, renko_size: float, price_col: str='price_wmean') -> dict:
+    num_steps = round(abs(bar_1[price_col] - bar_2[price_col]) / renko_size) + 4
+    fill_prices = np.linspace(start=bar_1[price_col], stop=bar_2[price_col], num=num_steps)
+    fill_dt = pd.date_range(start=bar_1['close_at'], end=bar_2['open_at'], periods=num_steps)
+    fill_dict = {
+        'bar_trigger': 'gap_filler',
+        'close_at': fill_dt,
+        price_col: fill_prices, 
+        'price_high': fill_prices+(renko_size/2), 
+        'price_low': fill_prices-(renko_size/2)
+    }
+    return pd.DataFrame(fill_dict).to_dict(orient='records')

@@ -22,7 +22,7 @@ def validate_df(df: pd.DataFrame) -> pd.DataFrame:
         return df
  
 
-def market_daily_to_df(daily: list) -> pd.DataFrame:    
+def market_daily_to_df(daily: list) -> pd.DataFrame: 
     df = pd.DataFrame(daily, columns=['T', 'v', 'o', 'c', 'h', 'l', 'vw', 't'])
     df = df.rename(columns={'T': 'symbol',
                             'v': 'volume',
@@ -32,10 +32,11 @@ def market_daily_to_df(daily: list) -> pd.DataFrame:
                             'l': 'low',
                            'vw': 'vwap',
                             't': 'epoch'})
-    # add datetime index
+    # remove non-ascii symbols
+    ascii_mask = df.symbol.apply(lambda x: x.isascii())
+    df = df.loc[ascii_mask].reset_index(drop=True)
+    # add datetime column
     df['date_time'] = pd.to_datetime(df['epoch'] * 10**6).dt.normalize()
-    # df = df.set_index(pd.to_datetime(df['epoch'] * 10**6).dt.normalize(), drop=True)
-    # df = df.rename_axis(index='date')
     df = df.drop(columns='epoch')
     # fix vwap
     mask = ~(df.vwap.between(df.low, df.high)) # vwap outside the high/low range
@@ -43,6 +44,7 @@ def market_daily_to_df(daily: list) -> pd.DataFrame:
     # add dollar total
     df['dollar_total'] = df['vwap'] * df['volume']
     # optimze datatypes
+    df['symbol'] = df['symbol'].astype('string')
     df['volume'] = df['volume'].astype('uint64')
     for col in ['dollar_total', 'vwap', 'open', 'close', 'high', 'low']:
         df[col] = df[col].astype('float32')
@@ -155,40 +157,6 @@ def get_market_date_df(date: str) -> pd.DataFrame:
     return market_daily_to_df(daily)
 
 
-def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
-    
-    if upload_to_s3:
-        s3fs = get_s3fs_client()
-
-    if symbol == 'market':
-        df = get_market_date_df(date)
-    else: # get tick data
-        df = get_ticks_date_df(symbol, date, tick_type)
-        if len(df) < 1:
-            print('No Data for', symbol, date)
-            return df
-    
-    if tick_type is None:
-        tick_type = 'daily'
-
-    if save_local: # save to local file
-        full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
-        Path(full_path).mkdir(parents=True, exist_ok=True)
-        file_path = full_path + 'data.feather'
-        print('Saving:', symbol, date, 'to local file')
-        df.to_feather(path=file_path, version=2)
-    else:
-        with NamedTemporaryFile(mode='w+b') as tmp_ref1:
-            file_path = tmp_ref1.name
-            df.to_feather(path=file_path, version=2)
-    
-    if upload_to_s3: # upload to s3/b2
-        print('Uploading:', symbol, date, 'to S3/B2')
-        s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
-
-    return df
-
-
 def get_open_market_dates(start_date: str, end_date: str) -> list:
     from pandas_market_calendars import get_calendar
     market = get_calendar('NYSE')
@@ -216,6 +184,38 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     existing_dates_set = set(existing_dates)
     remaining_dates = [x for x in request_dates if x not in existing_dates_set and x <= date.today().isoformat()]
     return remaining_dates
+
+
+def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
+    
+    if upload_to_s3:
+        s3fs = get_s3fs_client()
+
+    if symbol == 'market':
+        df = get_market_date_df(date)
+        tick_type = 'daily'
+    else: # get tick data
+        df = get_ticks_date_df(symbol, date, tick_type)
+        if len(df) < 1:
+            print('No Data for', symbol, date)
+            return df
+
+    if save_local: # save to local file
+        full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
+        Path(full_path).mkdir(parents=True, exist_ok=True)
+        file_path = full_path + 'data.feather'
+        print('Saving:', symbol, date, 'to local file')
+        df.to_feather(path=file_path, version=2)
+    else:
+        with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+            file_path = tmp_ref1.name
+            df.to_feather(path=file_path, version=2)
+    
+    if upload_to_s3: # upload to s3/b2
+        print('Uploading:', symbol, date, 'to S3/B2')
+        s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+
+    return df
 
 
 def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, save_local=True, upload_to_s3=True):

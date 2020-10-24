@@ -50,9 +50,9 @@ with Flow(name='backfill-flow') as flow:
 # executor = LocalExecutor()
 executor = DaskExecutor(
     cluster_kwargs={
-        'n_workers': 2,
+        'n_workers': 4,
         'processes': False,
-        'threads_per_worker': 1
+        'threads_per_worker': 8
     }
 )
 
@@ -61,9 +61,10 @@ if __name__ == '__main__':
 
     flow_state = flow.run(
         executor=executor,
-        symbols=['GOLD', 'FSM', 'SPY', 'GLD', 'GDX'],
-        # symbols=['market'],
-        tick_type='trades',
-        start_date='2020-01-01',
+        # symbols=['GOLD','FSM','GLD','GDX'],
+        symbols=['market'],
+        # tick_type='trades',
+        tick_type='daily',
+        start_date='2018-01-01',
         end_date=(date.today() - timedelta(days=1)).isoformat(), # yesterday
     )

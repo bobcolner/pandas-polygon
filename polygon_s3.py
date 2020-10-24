@@ -94,7 +94,7 @@ def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') ->
     return df
 
 
-def get_s3_dataset() -> FileSystemDataset:
+def get_s3_dataset(symbol: str, tick_type: str='trades') -> FileSystemDataset:
     from pyarrow.fs import S3FileSystem
     s3  = S3FileSystem(
         access_key=environ['B2_ACCESS_KEY_ID'],
@@ -102,7 +102,7 @@ def get_s3_dataset() -> FileSystemDataset:
         endpoint_override=environ['B2_ENDPOINT_URL']
     )
     ds = dataset(
-        source='polygon-equities/data/trades/',
+        source=f"polygon-equities/data/{tick_type}/symbol={symbol}/",
         format='feather',
         filesystem=s3,
         partitioning='hive',
@@ -111,9 +111,12 @@ def get_s3_dataset() -> FileSystemDataset:
     return ds
 
 
-def get_local_dataset(result_path: str) -> FileSystemDataset:
+def get_local_dataset(result_path: str, tick_type: str, symbol: str=None) -> FileSystemDataset:
+    full_path = result_path + f"/{tick_type}/"
+    if symbol:
+        full_path = full_path + f"symbol={symbol}/"
     ds = dataset(
-        source=result_path,
+        source=full_path,
         format='feather',
         partitioning='hive',
         exclude_invalid_files=True
@@ -121,9 +124,35 @@ def get_local_dataset(result_path: str) -> FileSystemDataset:
     return ds
 
 
-def dataset_to_df(ds: FileSystemDataset, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+def filter_tick_dataset(ds: FileSystemDataset, symbols: list, start_date: str, end_date: str) -> pd.DataFrame:
     
-    filter_exp = (field('symbol') == symbol) & \
+    filter_exp = (field('symbol').isin(symbols)) & \
         (field('date') >= start_date) & (field('date') <= end_date)
 
     return ds.to_table(filter=filter_exp).to_pandas()
+
+
+# def filter_daily_dataset(ds: FileSystemDataset, symbol: str) -> pd.DataFrame:
+    
+#     # df = ds.to_table(filter=field('symbol').isin(symbols)).to_pandas()
+#     df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
+
+#     return df
+
+def get_symbol_daily(result_path: str, symbol: str, start_date: str) -> pd.DataFrame:
+    ds = get_local_dataset(result_path, tick_type='daily')
+    df = ds.to_table(filter=field('date') >= start_date).to_pandas()
+    # df = df.date.astype('str')
+    df = df.loc[df['symbol']=='GLD']
+    return df.reset_index(drop=True)
+
+
+def get_symbol_vol_filter(result_path: str, symbol: str, start_date: str) -> pd.DataFrame:
+    from filters import add_jma_filter
+    df = get_symbol_daily(result_path, symbol, start_date)
+    df = df.set_index('date_time')
+    # df = df.drop(columns='date')
+    df.loc[:, 'range'] = df['high'] - df['low']
+    df = add_jma_filter(df, 'range', length=10, phase=0, power=1)
+    df = df.dropna()
+    return df

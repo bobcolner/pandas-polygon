@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def rema_filter_update(series_last, rema_last, length=14, lamb=0.5):
+def rema_filter_update(series_last: float, rema_last: float, length=14, lamb=0.5):
     # regularized ema
     alpha = 2 / (length + 1)
     rema = (rema_last + alpha * (series_last - rema_last) + 
@@ -10,8 +10,8 @@ def rema_filter_update(series_last, rema_last, length=14, lamb=0.5):
     return rema
 
 
-def rema_filter(series, length:int, lamb:float):
-    rema_next = series[0]
+def rema_filter(series: pd.Series, length: int, lamb: float) -> list:
+    rema_next = series.values[0]
     rema = []
     for value in series:
         rema_next = rema_filter_update(
@@ -40,11 +40,11 @@ def jma_filter_update(series_last:float, e0_last:float, e1_last:float,
     return jma_next, e0_next, e1_next, e2_next,
 
 
-def jma_filter(series, length:int=7, phase:int=50, power:int=2):
+def jma_filter(series: pd.Series, length: int=7, phase: int=50, power: int=2) -> list:
     e0_next = 0
     e1_next = 0
     e2_next = 0
-    jma_next = series[0]
+    jma_next = series.values[0]
     jma = []
     for value in series:
         jma_next, e0_next, e1_next, e2_next  = jma_filter_update(
@@ -58,12 +58,12 @@ def jma_filter(series, length:int=7, phase:int=50, power:int=2):
     return jma
 
 
-def add_jma_filter(df:pd.DataFrame, col:str, length:int=7, phase:int=50, power:int=2):
-    df[col+'_jma'] = jma_filter(df[col], length, phase, power)
+def add_jma_filter(df: pd.DataFrame, col: str, length: int=7, phase: int=50, power: int=2) -> pd.Da:
+    df.loc[:, col+'_jma'] = jma_filter(df[col], length, phase, power)
     return df
 
 
-def add_filters(df:pd.DataFrame, col:str):
+def add_filters(df: pd.DataFrame, col: str) -> pd.DataFrame:
     df['smooth_med5'] = df[col].rolling(window=5, center=True, min_periods=1).median()
     df['filter_med5'] = df[col].rolling(window=5, center=False, min_periods=1).median()
     df['filter_med7'] = df[col].rolling(window=7, center=False, min_periods=1).median()
@@ -76,7 +76,7 @@ def add_filters(df:pd.DataFrame, col:str):
     return df
 
 
-def price_outlier_metrics(df:pd.DataFrame, col:str):
+def price_outlier_metrics(df: pd.DataFrame, col: str) -> pd.DataFrame:
     df[col+'_diff'] = abs(df['price'] - df[col])
     df[col+'_pct'] = abs((1-(df['price'] / df[col])))*100
     df[col+'_zs'] = (df[col+'_diff'] - df[col+'_diff'].mean()) / df[col+'_diff'].std(ddof=0)

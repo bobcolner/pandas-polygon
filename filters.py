@@ -2,7 +2,14 @@ import numpy as np
 import pandas as pd
 
 
-def rema_filter_update(series_last: float, rema_last: float, length=14, lamb=0.5):
+def med_filter(df: pd.DataFrame, window: int=5, zthresh: int=10) -> pd.DataFrame:
+    df['filter'] = df['price'].rolling(window, center=False, min_periods=1).median()
+    df['filter_diff'] = abs(df['price'] - df['filter'])
+    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
+    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
+
+
+def rema_filter_update(series_last: float, rema_last: float, length=14, lamb=0.5) -> float:
     # regularized ema
     alpha = 2 / (length + 1)
     rema = (rema_last + alpha * (series_last - rema_last) + 
@@ -58,7 +65,7 @@ def jma_filter(series: pd.Series, length: int=7, phase: int=50, power: int=2) ->
     return jma
 
 
-def add_jma_filter(df: pd.DataFrame, col: str, length: int=7, phase: int=50, power: int=2) -> pd.Da:
+def add_jma_filter(df: pd.DataFrame, col: str, length: int=7, phase: int=50, power: int=2) -> pd.DataFrame:
     df.loc[:, col+'_jma'] = jma_filter(df[col], length, phase, power)
     return df
 

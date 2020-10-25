@@ -396,3 +396,18 @@ sd_d = sd_df.to_dict(orient='records')
 symbol_dates = []
 for row in sd_d:
     symbol_dates.append((row[0], row[1]))
+
+
+# open_dates = pb.get_open_market_dates(start_date, end_date)
+daily_vol_df = ps3.get_symbol_vol_filter(result_path, symbol, start_date)
+bar_dates = []
+for row in daily_vol_df.itertuples():
+    # load ticks
+    ticks_df = ps3.load_ticks(result_path, symbol, row.date, tick_type)
+    # sample bars
+    thresh.update({'renko_size': row.range_jma / 15})
+    bars, state = bs.build_bars(ticks_df, thresh)
+    d = {'date:': date,
+         'bars': bars
+        }
+    bar_dates.append(d)    

@@ -1,25 +1,33 @@
-from time import time_ns, time
+from os import environ
+from time import time_ns
 import json
 import pandas as pd
 from trio import run
 from trio_websocket import open_websocket_url
 
 
-def run_stream_ticks(tickers='T.SPY, Q.SPY', file_name='data.txt'):
+if 'POLYGON_API_KEY' in environ:
+    API_KEY = environ['POLYGON_API_KEY']
+else:
+    raise ValueError('missing poloyon api key')
+
+
+def run_stream_ticks(tickers: str='T.SPY, Q.SPY', file_name: str='data.txt'):
     run(stream_ticks, tickers, file_name)
 
+
 # https://www.willmcgugan.com/blog/tech/post/speeding-up-websockets-60x/
-async def stream_ticks(tickers="T.GLD, Q.GLD", output_fname='data.txt'):
+async def stream_ticks(tickers: str, output_fname: str):
     # connect to ws
     async with open_websocket_url('wss://alpaca.socket.polygon.io/stocks') as ws:
         msg1 = await ws.get_message()
         print(msg1)
         # authenticate
-        await ws.send_message('{"action":"auth", "params":"AKW7AP27P3ZWEYEP02BZ"}')
+        await ws.send_message('{"action": "auth", "params": API_KEY}')
         msg2 = await ws.get_message()
         print(msg2)
         # subscribe to symbols
-        await ws.send_message(f'{{"action":"subscribe", "params":"{tickers}"}}')
+        await ws.send_message(f'{{"action": "subscribe", "params": "{tickers}"}}')
         msg3 = await ws.get_message()
         print(msg3)
         # listen for events
@@ -27,7 +35,7 @@ async def stream_ticks(tickers="T.GLD, Q.GLD", output_fname='data.txt'):
             with open(output_fname, 'a') as out_file:
                 message = await ws.get_message()
                 out_file.write(str(time_ns()) + ' || ' + message + '\n')
-                ticks = json.loads(message)
+                # ticks = json.loads(message)
                 # for tick in ticks:
                 #     if tick['ev'] not in ['T', 'Q']:
                 #         continue

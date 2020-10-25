@@ -1,14 +1,8 @@
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import pandas as pd
-from tqdm import tqdm
 from polygon_rest_api import get_market_date, get_stocks_ticks_date
 from polygon_s3 import get_s3fs_client, get_symbol_dates
-
-
-def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
-    from glob import glob
-    return pd.concat(map(reader, glob(path.join('', glob_string))), ignore_index=True)
 
 
 def validate_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -104,14 +98,8 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def med_filter(df: pd.DataFrame, window: int=5, zthresh: int=10) -> pd.DataFrame:
-    df['filter'] = df['price'].rolling(window, center=False, min_periods=1).median()
-    df['filter_diff'] = abs(df['price'] - df['filter'])
-    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
-    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
-
-
 def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
+    from filters import med_filter
     # get origional number of ticks
     og_tick_count = df.shape[0]
     # drop irrgular trade conditions
@@ -186,7 +174,8 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     return remaining_dates
 
 
-def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
+def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, 
+    upload_to_s3=False) -> pd.DataFrame:
     
     if upload_to_s3:
         s3fs = get_s3fs_client()
@@ -218,7 +207,8 @@ def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save
     return df
 
 
-def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, save_local=True, upload_to_s3=True):
+def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, 
+    save_local=True, upload_to_s3=True):
     
     request_dates = get_open_market_dates(start_date, end_date)
     print('requested', len(request_dates), 'dates')
@@ -233,6 +223,15 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
     
     print(len(request_dates), 'remaining dates')
     
-    for date in tqdm(request_dates):
+    for date in request_dates:
         print('fetching:', date)
         backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)
+
+
+def put_date_df_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+    df = get_ticks_date_df(symbol, date, tick_type)
+    s3fs = get_s3fs_client()
+    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+        df.to_feather(path=tmp_ref1.name, version=2)
+        s3fs.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    return df

@@ -74,6 +74,16 @@ def date_df_to_file(df: pd.DataFrame, symbol:str, date:str, tick_type: str, resu
     return path+'data.feather'
 
 
+def put_date_df_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+    from tempfile import NamedTemporaryFile
+    from polygon_backfill import get_ticks_date_df
+    df = get_ticks_date_df(symbol, date, tick_type)
+    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+        df.to_feather(path=tmp_ref1.name, version=2)
+        s3fs.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    return df
+
+
 def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') -> pd.DataFrame:
     try:
         print(symbol, date, 'trying to get ticks from local file...')
@@ -142,10 +152,10 @@ def get_symbol_daily(result_path: str, symbol: str, start_date: str) -> pd.DataF
 
 
 def get_symbol_vol_filter(result_path: str, symbol: str, start_date: str) -> pd.DataFrame:
-    from filters import add_jma_filter
+    from filters import jma_filter_df
     df = get_symbol_daily(result_path, symbol, start_date)
     df.loc[:, 'range'] = df['high'] - df['low']
-    df = add_jma_filter(df, col='range', length=10, phase=0, power=1)
+    df = jma_filter_df(df, col='range', length=7, phase=0, power=1)
     df = df.dropna()
     df = df.set_index('date_time')
     return df

@@ -99,7 +99,7 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
 
 
 def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
-    from filters import med_filter
+    from filters import median_outlier_filter
     # get origional number of ticks
     og_tick_count = df.shape[0]
     # drop irrgular trade conditions
@@ -108,7 +108,7 @@ def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
     dt_diff = (df.sip_dt - df.exchange_dt)
     df = df.loc[dt_diff < pd.to_timedelta(1, unit='S')]
     # add median filter and remove outlier trades
-    df = med_filter(df, window=5, zthresh=10)
+    df = median_outlier_filter(df)
     # remove duplicate trades
     num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
     if num_dups > 0: 
@@ -227,11 +227,3 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
         print('fetching:', date)
         backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)
 
-
-def put_date_df_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
-    df = get_ticks_date_df(symbol, date, tick_type)
-    s3fs = get_s3fs_client()
-    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
-        df.to_feather(path=tmp_ref1.name, version=2)
-        s3fs.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
-    return df

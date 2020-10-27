@@ -1,12 +1,11 @@
 import pandas as pd
 import ray
-from polygon_backfill import load_ticks
-from polygon_s3 import get_symbol_vol_filter
+from polygon_s3 import load_ticks
 from bar_samples import build_bars
 from filters import jma_filter_df
 
 @ray.remote
-def build_bars_ray(result_path: str, symbol: str, start_date: str) -> dict:
+def build_bars_ray(result_path: str, symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
     ticks_df = load_ticks(result_path, symbol, date, 'trades')
     # sample bars
@@ -15,15 +14,14 @@ def build_bars_ray(result_path: str, symbol: str, start_date: str) -> dict:
 
     
 
-def build_bars_dates_ray(daily_stats_df: pd.DataFrame) -> list:	
+def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path: str, symbol: str) -> list:	
 	ray.init(ignore_reinit_error=True)
-
 	futures = []
 	for row in daily_stats_df.itertuples():
 	 
 	    thresh.update({'renko_size': row.range_jma_lag / 15})
 	    
-	    if 'tick_imbalance_thresh_jma_lag' in daily_join_df.columns:
+	    if 'tick_imbalance_thresh_jma_lag' in daily_stats_df.columns:
 	    	thresh.update({'tick_imbalance': row.tick_imbalance_thresh_jma_lag})
 
 	    bars = build_bars_ray.remote(
@@ -35,7 +33,6 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame) -> list:
 	    futures.append(bars)
 	   
 	bar_dates = ray.get(futures)
-	
 	ray.shutdown()
 	return bar_dates 
 
@@ -57,6 +54,4 @@ def process_bar_dates(bar_dates: list) -> pd.DataFrame:
 
 	daily_bar_stats_df = daily_bar_stats_df.dropna()
 
-	daily_join_df = pd.merge(left=daily_bar_stats_df, right=daily_vol_df, left_on='date', right_on='date')
-
-	return daily_join_df
+	return daily_bar_stats_df

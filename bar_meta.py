@@ -1,8 +1,12 @@
+# https://robotwealth.com/zorro-132957/
+import numpy as np
 import pandas as pd
 import ray
-from polygon_s3 import load_ticks
+from polygon_s3 import load_ticks, get_symbol_vol_filter
 from bar_samples import build_bars
+from bar_labels import label_bars, get_concurrent_stats
 from filters import jma_filter_df
+
 
 @ray.remote
 def build_bars_ray(result_path: str, symbol: str, date: str, thresh: dict) -> dict:
@@ -10,48 +14,113 @@ def build_bars_ray(result_path: str, symbol: str, date: str, thresh: dict) -> di
     ticks_df = load_ticks(result_path, symbol, date, 'trades')
     # sample bars
     bars, state = build_bars(ticks_df, thresh)
-    return {'date': date, 'bars': bars}
-
+    return {'date': date, 'thresh': thresh, 'bars': bars}
     
 
-def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path: str, symbol: str) -> list:	
-	ray.init(ignore_reinit_error=True)
-	futures = []
-	for row in daily_stats_df.itertuples():
-	 
-	    thresh.update({'renko_size': row.range_jma_lag / 15})
-	    
-	    if 'tick_imbalance_thresh_jma_lag' in daily_stats_df.columns:
-	    	thresh.update({'tick_imbalance': row.tick_imbalance_thresh_jma_lag})
+def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path: str, symbol: str) -> list:
+    futures = []
+    for row in daily_stats_df.itertuples():
+     
+        if 'range_jma_lag' in daily_stats_df.columns:
+            thresh.update({'renko_size': row.range_jma_lag / 10})
+        
+        if 'tick_imbalance_thresh_jma_lag' in daily_stats_df.columns:
+            thresh.update({'tick_imbalance': row.tick_imbalance_thresh_jma_lag})
 
-	    bars = build_bars_ray.remote(
-	        result_path=result_path,
-	        symbol=symbol, 
-	        date=row.date,
-	        thresh=thresh
-	    )
-	    futures.append(bars)
-	   
-	bar_dates = ray.get(futures)
-	ray.shutdown()
-	return bar_dates 
+        bars = build_bars_ray.remote(
+            result_path=result_path,
+            symbol=symbol, 
+            date=row.date,
+            thresh=thresh
+        )
+        futures.append(bars)
+
+    return ray.get(futures)
 
 
-def process_bar_dates(bar_dates: list) -> pd.DataFrame:
-	results = []
-	for date_d in bar_dates:
-	    
-	    imbalances = []    
-	    for bar in date_d['bars']:
-	        imbalances.append(bar['tick_imbalance'])
-	   
-	    imbal_thresh = pd.Series(imbalances).quantile(q=.95)
-	    results.append({'date': date_d['date'], 'bar_count': len(date_d['bars']), 'tick_imbalance_thresh': imbal_thresh})
+def process_bar_dates(bar_dates: list, tick_imbalance_thresh: float=0.95) -> pd.DataFrame:
+    results = []
+    for date_d in bar_dates:
+        imbalances = []
+        durations = []
+        for bar in date_d['bars']:
+            imbalances.append(bar['tick_imbalance'])
+            durations.append(bar['duration_min'])
 
-	daily_bar_stats_df = jma_filter_df(pd.DataFrame(results), 'tick_imbalance_thresh', length=5, power=1)
+        results.append({
+            'date': date_d['date'], 
+            'bar_count': len(date_d['bars']), 
+            'tick_imbalance_thresh': pd.Series(imbalances).quantile(q=tick_imbalance_thresh),
+            # 'duration_min_dist': pd.Series(durations).describe(),
+            'duration_min_mean': pd.Series(durations).mean(),
+            'duration_min_median': pd.Series(durations).median(),
+            'thresh': date_d['thresh']
+            })
 
-	daily_bar_stats_df.loc[:,'tick_imbalance_thresh_jma_lag'] = daily_bar_stats_df['tick_imbalance_thresh_jma'].shift(1)
+    daily_bar_stats_df = jma_filter_df(pd.DataFrame(results), 'tick_imbalance_thresh', length=5, power=1)
+    daily_bar_stats_df.loc[:, 'tick_imbalance_thresh_jma_lag'] = daily_bar_stats_df['tick_imbalance_thresh_jma'].shift(1)
+    daily_bar_stats_df = daily_bar_stats_df.dropna()
+    return daily_bar_stats_df
 
-	daily_bar_stats_df = daily_bar_stats_df.dropna()
 
-	return daily_bar_stats_df
+@ray.remote
+def label_bars_ray(bars: list, result_path: str, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
+    ticks_df = load_ticks(result_path, symbol, date, 'trades')
+    labeled_bars = label_bars(
+        bars=bars, 
+        ticks_df=ticks_df, 
+        risk_level=risk_level, 
+        horizon_mins=horizon_mins, 
+        reward_ratios=reward_ratios
+        )
+    labeled_bars_df = pd.DataFrame(labeled_bars)
+    labeled_bars_unq = get_concurrent_stats(labeled_bars_df)
+    print(symbol, date, str(labeled_bars_unq['grand_avg_unq']))
+    return {
+        'date': date, 
+        'risk_level': risk_level, 
+        'horizon_mins': horizon_mins, 
+        'avg_label_uniquness': labeled_bars_unq['grand_avg_unq'],
+        'labeled_bars': labeled_bars
+        }
+
+
+def label_bars_dates_ray(bar_dates: list, result_path: str, symbol: str, horizon_mins: int, reward_ratios: list) -> list:
+
+    futures = []
+    for date in bar_dates:
+        result = label_bars_ray.remote(
+            bars=date['bars'],
+            result_path=result_path,
+            symbol=symbol,
+            date=date['date'],
+            risk_level=date['thresh']['renko_size'],
+            horizon_mins=horizon_mins,
+            reward_ratios=reward_ratios
+        )
+        futures.append(result)
+
+    return ray.get(futures)
+
+
+def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date: str, thresh: dict, 
+    horizon_mins: int=30, reward_ratios: list=np.arange(3, 12, 1)) -> tuple:
+
+    # calculate daily ATR filter
+    daily_vol_df = get_symbol_vol_filter(result_path, symbol, start_date, end_date)
+    daily_vol_df.loc[:, 'range_jma_lag'] = daily_vol_df.range_jma.shift(1)
+    daily_vol_df = daily_vol_df.dropna()
+    # 1st pass bar sampeing based on ATR
+    bar_dates = build_bars_dates_ray(daily_vol_df, thresh, result_path, symbol)
+    # calcuate stats on 1st pass bar samples
+    daily_bar_stats_df = process_bar_dates(bar_dates)
+    # join output
+    daily_join_df = pd.merge(left=daily_bar_stats_df, right=daily_vol_df, left_on='date', right_on='date')
+    # 2ed pass bar sampleing based on ATR and imbalance threshold
+    bar_dates = build_bars_dates_ray(daily_join_df, thresh, result_path, symbol)
+    # calcuate stats on 2ed pass bar samples
+    daily_bar_stats_df = process_bar_dates(bar_dates)
+    # label 2ed pass bar samples
+    labeled_bar_dates = label_bars_dates_ray(bar_dates, result_path, symbol, horizon_mins, reward_ratios)
+    
+    return labeled_bar_dates, daily_bar_stats_df, daily_join_df

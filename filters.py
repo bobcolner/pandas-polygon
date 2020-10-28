@@ -97,3 +97,4 @@ def median_outlier_filter(df: pd.DataFrame, col: str='price', window: int=5, zth
     df['filter_diff'] = abs(df[col] - df['filter'])
     df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
     return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
+

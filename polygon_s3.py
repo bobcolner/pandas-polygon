@@ -143,17 +143,17 @@ def filter_tick_dataset(ds: FileSystemDataset, symbols: list, start_date: str, e
 #     df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
 #     return df
 
-def get_symbol_daily(result_path: str, symbol: str, start_date: str) -> pd.DataFrame:
+def get_symbol_daily(result_path: str, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     ds = get_local_dataset(result_path, tick_type='daily', symbol='market')
-    df = ds.to_table(filter=field('date') >= start_date).to_pandas()
+    df = ds.to_table(filter=(field('date') >= start_date) & (field('date') <= end_date)).to_pandas()
     df['date'] = df['date'].astype('string')
     df = df.loc[df['symbol'] == symbol]
     return df.reset_index(drop=True)
 
 
-def get_symbol_vol_filter(result_path: str, symbol: str, start_date: str) -> pd.DataFrame:
+def get_symbol_vol_filter(result_path: str, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     from filters import jma_filter_df
-    df = get_symbol_daily(result_path, symbol, start_date)
+    df = get_symbol_daily(result_path, symbol, start_date, end_date)
     df.loc[:, 'range'] = df['high'] - df['low']
     df = jma_filter_df(df, col='range', length=7, phase=0, power=1)
     df = df.dropna()

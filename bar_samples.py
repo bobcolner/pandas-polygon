@@ -144,7 +144,7 @@ def output_new_bar(state: dict) -> dict:
     new_bar['close_at'] = state['trades']['date_time'][-1]
     new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']    
     new_bar['duration_sec'] = state['duration_sec']
-    new_bar['duration_min'] = new_bar['duration_sec'] // 60
+    new_bar['duration_min'] = new_bar['duration_sec'] / 60
     # price
     new_bar['price_open'] = state['trades']['price'][0]
     new_bar['price_close'] = state['trades']['price'][-1]

@@ -22,6 +22,7 @@ dependencies:
   - tenacity
   - prefect[viz, gcp, aws]
   - boto3
+  - google-api-python-client
   - requests
   - fsspec
   - s3fs

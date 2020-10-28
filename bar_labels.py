@@ -33,7 +33,7 @@ def get_tb_outcome(reward_ratio: float, risk_level: float, side: str, label_pric
 
 
 def triple_barrier_outcomes(label_prices: pd.DataFrame, risk_level: float, reward_ratios: list) -> list:
-    first_price = label_prices['price'].values[0]    
+    first_price = label_prices['price'].values[0]
     tb_outcomes = []
     for side in ['long', 'short']:
         stop_outcome = get_tb_outcome(None, risk_level, side, label_prices, goal='stop')
@@ -90,7 +90,7 @@ def outcomes_to_label(outcomes: pd.DataFrame, price_end_at: pd._libs.tslibs.time
 
 
 def get_trend_outcome(label_prices: pd.DataFrame) -> dict:
-    if len(label_prices) < 10:
+    if len(label_prices) < 30:
         return {}
     df = label_prices.copy()
     df['const'] = 1
@@ -105,28 +105,34 @@ def get_trend_outcome(label_prices: pd.DataFrame) -> dict:
     return trend
 
 
-def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, label_horizon_mins: int) -> pd.DataFrame:
+def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, horizon_mins: int) -> pd.DataFrame:
     price_start_at = label_start_at + pd.Timedelta(value=4, unit='seconds') # inference+network latency compensation
-    price_end_at = label_start_at + pd.Timedelta(value=label_horizon_mins, unit='minutes')
+    price_end_at = label_start_at + pd.Timedelta(value=horizon_mins, unit='minutes')
     label_prices = ticks_df.loc[(ticks_df['date_time'] >= price_start_at) & (ticks_df['date_time'] < price_end_at)]
     return label_prices,  price_end_at
 
 
-def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, label_horizon_mins: int, reward_ratios: list) -> list:
+def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int, 
+    reward_ratios: list, add_trend_label: bool=False) -> list:
 
-    for idx, row in tqdm(enumerate(bars), total=len(bars)):
-        label_prices, price_end_at = get_label_ticks(ticks_df, row['close_at'], label_horizon_mins)
+    for idx, row in enumerate(bars):
+        label_prices, price_end_at = get_label_ticks(ticks_df, label_start_at=row['close_at'], horizon_mins=horizon_mins)
+        if len(label_prices) < 20:
+            print('ISSUE!', len(label_prices['price']), 'start at:', row['close_at'])
+            continue
+
         outcomes = triple_barrier_outcomes(label_prices, risk_level, reward_ratios)
         label = outcomes_to_label(outcomes, price_end_at)
         bars[idx].update(label)
-        trend = get_trend_outcome(label_prices)
-        bars[idx].update(trend)
+        if add_trend_label:
+            trend = get_trend_outcome(label_prices)
+            bars[idx].update(trend)
 
     return bars
 
 
 def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
-    from mlfinlab_bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
+    # from mlfinlab_bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
     from mlfinlab_concurrent import get_av_uniqueness_from_triple_barrier
 
     samples_info_sets = lbars_df[['open_at', 'close_at']]
@@ -137,12 +143,12 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     price_bars = price_bars.set_index('close_at')
 
     label_avg_unq = get_av_uniqueness_from_triple_barrier(samples_info_sets, price_bars, num_threads=1)
-    ind_mat = get_ind_matrix(samples_info_sets, price_bars)
-    avg_unq_ind_mat = get_ind_mat_average_uniqueness(ind_mat)
+    # ind_mat = get_ind_matrix(samples_info_sets, price_bars)
+    # avg_unq_ind_mat = get_ind_mat_average_uniqueness(ind_mat)
     results = {
-        'label_avg_unq': label_avg_unq,
+        # 'label_avg_unq': label_avg_unq,
         'grand_avg_unq': label_avg_unq.mean(),
-        'ind_mat': ind_mat,
-        'ind_mat_avg_unq': avg_unq_ind_mat
+        # 'ind_mat': ind_mat,
+        # 'ind_mat_avg_unq': avg_unq_ind_mat
     }    
     return results

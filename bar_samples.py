@@ -244,17 +244,3 @@ def build_bars(ticks_df:pd.DataFrame, thresh: dict):
         }
         output_bars, state = update_state_and_bars(tick, state, output_bars, thresh)
     return output_bars, state
-
-
-def fill_gap_renko(bar_1: dict, bar_2: dict, renko_size: float, price_col: str='price_wmean') -> dict:
-    num_steps = round(abs(bar_1[price_col] - bar_2[price_col]) / renko_size) + 4
-    fill_prices = np.linspace(start=bar_1[price_col], stop=bar_2[price_col], num=num_steps)
-    fill_dt = pd.date_range(start=bar_1['close_at'], end=bar_2['open_at'], periods=num_steps)
-    fill_dict = {
-        'bar_trigger': 'gap_filler',
-        'close_at': fill_dt,
-        price_col: fill_prices, 
-        'price_high': fill_prices+(renko_size/2), 
-        'price_low': fill_prices-(renko_size/2)
-    }
-    return pd.DataFrame(fill_dict).to_dict(orient='records')

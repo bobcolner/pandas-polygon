@@ -1,4 +1,5 @@
 # https://robotwealth.com/zorro-132957/
+from datetime import timedelta
 import numpy as np
 import pandas as pd
 import ray
@@ -38,7 +39,7 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path
     return ray.get(futures)
 
 
-def process_bar_dates(bar_dates: list, tick_imbalance_thresh: float=0.95) -> pd.DataFrame:
+def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, tick_imbalance_thresh: float=0.95) -> pd.DataFrame:
     results = []
     for date_d in bar_dates:
         imbalances = []
@@ -60,7 +61,9 @@ def process_bar_dates(bar_dates: list, tick_imbalance_thresh: float=0.95) -> pd.
     daily_bar_stats_df = jma_filter_df(pd.DataFrame(results), 'tick_imbalance_thresh', length=5, power=1)
     daily_bar_stats_df.loc[:, 'tick_imbalance_thresh_jma_lag'] = daily_bar_stats_df['tick_imbalance_thresh_jma'].shift(1)
     daily_bar_stats_df = daily_bar_stats_df.dropna()
-    return daily_bar_stats_df
+    # join output
+    daily_join_df = pd.merge(left=daily_bar_stats_df, right=daily_vol_df, left_on='date', right_on='date')
+    return daily_join_df
 
 
 @ray.remote
@@ -103,6 +106,39 @@ def label_bars_dates_ray(bar_dates: list, result_path: str, symbol: str, horizon
     return ray.get(futures)
 
 
+def fill_gap(bar_1: dict, bar_2: dict, renko_size: float, price_col: str='price_wmean') -> dict:
+    num_steps = round(abs(bar_1[price_col] - bar_2[price_col]) / renko_size) + 4
+    fill_prices = np.linspace(start=bar_1[price_col], stop=bar_2[price_col], num=num_steps)
+    fill_dt = pd.date_range(
+        start=bar_1['close_at'] + timedelta(hours=1),
+        end=bar_2['open_at'] - timedelta(hours=1),
+        periods=num_steps
+        )
+    fill_dict = {
+        'bar_trigger': 'gap_filler',
+        'close_at': fill_dt,
+        price_col: fill_prices, 
+        'price_high': fill_prices + (renko_size / 2), 
+        'price_low': fill_prices - (renko_size / 2)
+    }
+    return pd.DataFrame(fill_dict).to_dict(orient='records')
+
+
+def fill_gaps_dates(labeled_bar_dates: list) -> list:
+    for idx, date in enumerate(labeled_bar_dates):
+        if idx == 0:
+            continue
+
+        gap_fill = fill_gap(
+            bar_1=labeled_bar_dates[idx-1]['labeled_bars'][-1],
+            bar_2=labeled_bar_dates[idx]['labeled_bars'][1],
+            renko_size=labeled_bar_dates[idx]['risk_level'],
+            price_col='price_wmean'
+        )
+        labeled_bar_dates[idx-1]['labeled_bars'] = labeled_bar_dates[idx-1]['labeled_bars'] + gap_fill
+    return labeled_bar_dates
+
+
 def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date: str, thresh: dict, 
     horizon_mins: int=30, reward_ratios: list=np.arange(3, 12, 1)) -> tuple:
 
@@ -113,14 +149,15 @@ def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date
     # 1st pass bar sampeing based on ATR
     bar_dates = build_bars_dates_ray(daily_vol_df, thresh, result_path, symbol)
     # calcuate stats on 1st pass bar samples
-    daily_bar_stats_df = process_bar_dates(bar_dates)
-    # join output
-    daily_join_df = pd.merge(left=daily_bar_stats_df, right=daily_vol_df, left_on='date', right_on='date')
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates)
     # 2ed pass bar sampleing based on ATR and imbalance threshold
-    bar_dates = build_bars_dates_ray(daily_join_df, thresh, result_path, symbol)
+    bar_dates = build_bars_dates_ray(daily_bar_stats_df, thresh, result_path, symbol)
     # calcuate stats on 2ed pass bar samples
-    daily_bar_stats_df = process_bar_dates(bar_dates)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates)
     # label 2ed pass bar samples
     labeled_bar_dates = label_bars_dates_ray(bar_dates, result_path, symbol, horizon_mins, reward_ratios)
-    
-    return labeled_bar_dates, daily_bar_stats_df, daily_join_df
+    # fill daily gaps
+    labeled_bar_dates = fill_gaps_dates(labeled_bar_dates)
+
+    return labeled_bar_dates, daily_bar_stats_df
+

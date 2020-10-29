@@ -145,9 +145,7 @@ def get_market_daily_df(result_path: str, start_date: str, end_date: str, symbol
     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
     ds = ds.to_table(filter=filter_exp)
     df = ds.to_pandas()
-    # df = df.drop(columns='date')
     if symbol:
-        # df = ds.to_table(filter=field('symbol').isin(symbols)).to_pandas()
         # df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
         df = df.loc[df['symbol'] == symbol]
     return df.reset_index(drop=True)

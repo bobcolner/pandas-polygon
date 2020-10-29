@@ -39,7 +39,7 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path
     return ray.get(futures)
 
 
-def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thresh: float=0.95) -> pd.DataFrame:
+def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thresh: float) -> pd.DataFrame:
     results = []
     for date_d in bar_dates:
         imbalances = []
@@ -145,7 +145,7 @@ def fill_gaps_dates(labeled_bar_dates: list) -> list:
 
 
 def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date: str, thresh: dict, 
-    horizon_mins: int=30, reward_ratios: list=np.arange(3, 12, 1)) -> tuple:
+    horizon_mins: int=30, reward_ratios: list=list(np.arange(3, 12, 1)), imbalance_thresh: float=0.95) -> tuple:
 
     # calculate daily ATR filter
     daily_vol_df = get_symbol_vol_filter(result_path, symbol, start_date, end_date)
@@ -155,20 +155,20 @@ def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date
         thresh=thresh,
         result_path=result_path,
         symbol=symbol,
-        range_frac=10
+        range_frac=12
         )
     # calcuate stats on 1st pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh)
     # 2ed pass bar sampleing based on ATR and imbalance threshold
     bar_dates = build_bars_dates_ray(
         daily_stats_df=daily_bar_stats_df, 
         thresh=thresh, 
         result_path=result_path, 
         symbol=symbol,
-        range_frac=12
+        range_frac=15
         )
     # calcuate stats on 2ed pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh)
     # label 2ed pass bar samples
     labeled_bar_dates = label_bars_dates_ray(bar_dates, result_path, symbol, horizon_mins, reward_ratios)
     # fill daily gaps

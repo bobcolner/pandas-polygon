@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from polygon_s3 import get_symbol_daily
 
 
 def read_market_daily(result_path:str) -> pd.DataFrame:    
@@ -8,6 +9,14 @@ def read_market_daily(result_path:str) -> pd.DataFrame:
     df = find_compleat_symbols(df, compleat_only=True)
     df = df.sort_index()
     return df
+
+
+def find_tradable_symbols(result_path: str, start_date: str, end_date: str) -> pd.DataFrame:
+    df = get_symbol_daily(result_path, start_date, end_date)
+    df.loc[:, 'range'] = df['high'] - df['low']
+    df.loc[:, 'pct_range'] = df['range'] / df['vwap']
+    sdf = df.groupby('symbol')[['pct_range', 'dollar_total']].mean()
+    return sdf, df
 
 
 def find_compleat_market_symbols(df: pd.DataFrame, active_days: int=1, compleat_only: bool=True) -> pd.DataFrame:

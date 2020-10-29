@@ -53,6 +53,7 @@ def remove_symbol(symbol: str, tick_type: str):
     path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
     s3fs.rm(path, recursive=True)
 
+
 def find_symbol_storage_used(symbol: str, tick_type: str) -> dict:
     path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
     return s3fs.du(path)
@@ -101,6 +102,7 @@ def load_ticks(local_path:str, symbol:str, date:str, tick_type: str='trades') ->
     return df
 
 
+# pyarrow datasets functions
 def get_s3_dataset(symbol: str, tick_type: str='trades') -> FileSystemDataset:
     from pyarrow.fs import S3FileSystem
     s3  = S3FileSystem(
@@ -131,31 +133,31 @@ def get_local_dataset(result_path: str, tick_type: str, symbol: str=None) -> Fil
     return ds
 
 
-def filter_tick_dataset(ds: FileSystemDataset, symbols: list, start_date: str, end_date: str) -> pd.DataFrame:
-    filter_exp = (field('symbol').isin(symbols)) & \
-        (field('date') >= start_date) & (field('date') <= end_date)
+def get_symbol_trades_df(result_path: str, symbols: list, start_date: str, end_date: str) -> pd.DataFrame:
+    ds = get_local_dataset(result_path, tick_type='trades', symbol=symbol)
+    filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
     df = ds.to_table(filter=filter_exp).to_pandas()
     return df
 
 
-# def filter_daily_dataset(ds: FileSystemDataset, symbol: str) -> pd.DataFrame:
-#     # df = ds.to_table(filter=field('symbol').isin(symbols)).to_pandas()
-#     df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
-#     return df
-
-def get_symbol_daily(result_path: str, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+def get_market_daily_df(result_path: str, start_date: str, end_date: str, symbol: str=None) -> pd.DataFrame:
     ds = get_local_dataset(result_path, tick_type='daily', symbol='market')
-    df = ds.to_table(filter=(field('date') >= start_date) & (field('date') <= end_date)).to_pandas()
-    df['date'] = df['date'].astype('string')
-    df = df.loc[df['symbol'] == symbol]
+    filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
+    ds = ds.to_table(filter=filter_exp)
+    df = ds.to_pandas()
+    # df = df.drop(columns='date')
+    if symbol:
+        # df = ds.to_table(filter=field('symbol').isin(symbols)).to_pandas()
+        # df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
+        df = df.loc[df['symbol'] == symbol]
     return df.reset_index(drop=True)
 
 
 def get_symbol_vol_filter(result_path: str, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     from filters import jma_filter_df
-    df = get_symbol_daily(result_path, symbol, start_date, end_date)
+    df = get_market_daily_df(result_path, start_date, end_date, symbol)
     df.loc[:, 'range'] = df['high'] - df['low']
     df = jma_filter_df(df, col='range', length=7, phase=0, power=1)
-    df = df.dropna()
-    df = df.set_index('date_time')
+    df.loc[:, 'range_jma_lag'] = df['range_jma'].shift(1)
+    df = df.dropna().reset_index(drop=True)
     return df

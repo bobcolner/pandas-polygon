@@ -116,9 +116,11 @@ def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mi
     reward_ratios: list, add_trend_label: bool=False) -> list:
 
     for idx, row in enumerate(bars):
+        
         label_prices, price_end_at = get_label_ticks(ticks_df, label_start_at=row['close_at'], horizon_mins=horizon_mins)
+        
         if len(label_prices) < 20:
-            print('ISSUE!', len(label_prices['price']), 'start at:', row['close_at'])
+            print('Dropping label, only', len(label_prices['price']), 'trades;' 'start at:', row['close_at'])
             continue
 
         outcomes = triple_barrier_outcomes(label_prices, risk_level, reward_ratios)
@@ -147,7 +149,7 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     # avg_unq_ind_mat = get_ind_mat_average_uniqueness(ind_mat)
     results = {
         # 'label_avg_unq': label_avg_unq,
-        'grand_avg_unq': label_avg_unq.mean(),
+        'grand_avg_unq': label_avg_unq['tW'].mean(),
         # 'ind_mat': ind_mat,
         # 'ind_mat_avg_unq': avg_unq_ind_mat
     }    

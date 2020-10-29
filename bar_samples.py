@@ -223,7 +223,7 @@ def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
     dates = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
     output_bars = []
     for i in tqdm(list(range(len(dates)-2))):
-        ticks = df[(df.date_time >= dates[i]) & (df.date_time < dates[i+1])]
+        ticks = df.loc[(df.date_time >= dates[i]) & (df.date_time < dates[i+1])]
         _, state = build_bars(df=ticks, thresh={})
         bar = output_new_bar(state)
         bar['open_at'] = dates[i]

@@ -24,6 +24,8 @@ dependencies:
   - boto3
   - google-api-python-client
   - requests
+  - websocket-client
+  - wsaccel
   - fsspec
   - s3fs
   - tqdm

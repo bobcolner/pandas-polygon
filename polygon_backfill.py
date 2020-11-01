@@ -2,7 +2,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 import pandas as pd
 from polygon_rest_api import get_market_date, get_stocks_ticks_date
-from polygon_s3 import get_s3fs_client, get_symbol_dates
+from polygon_s3 import get_s3fs_client
+
+
+try:
+    result_path = environ['DATA_PATH']
+except:    
+    result_path = '/Users/bobcolner/QuantClarity/pandas-polygon/data'
 
 
 def validate_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -153,7 +159,7 @@ def get_open_market_dates(start_date: str, end_date: str) -> list:
     return dates
 
 
-def dates_from_path(symbol: str, tick_type: str, result_path: str) -> list:
+def list_dates_from_path(symbol: str, tick_type: str) -> list:
     from os import listdir
     # assumes 'hive' {date}={yyyy-mm-dd}/data.{format} filename template
     dates_path = f"{result_path}/{tick_type}/symbol={symbol}"
@@ -174,8 +180,7 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     return remaining_dates
 
 
-def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save_local=True, 
-    upload_to_s3=False) -> pd.DataFrame:
+def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
     
     if upload_to_s3:
         s3fs = get_s3fs_client()
@@ -205,25 +210,3 @@ def backfill_date(symbol: str, date: str, tick_type: str, result_path: str, save
         s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
     return df
-
-
-def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, 
-    save_local=True, upload_to_s3=True):
-    
-    request_dates = get_open_market_dates(start_date, end_date)
-    print('requested', len(request_dates), 'dates')
-    
-    if upload_to_s3:
-        existing_dates = get_symbol_dates(symbol, tick_type)
-    else:
-        existing_dates = dates_from_path(symbol, tick_type, result_path)
-
-    if existing_dates is not None:
-        request_dates = find_remaining_dates(request_dates, existing_dates)
-    
-    print(len(request_dates), 'remaining dates')
-    
-    for date in request_dates:
-        print('fetching:', date)
-        backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)
-

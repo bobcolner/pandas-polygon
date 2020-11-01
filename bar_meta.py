@@ -10,15 +10,15 @@ from filters import jma_filter_df
 
 
 @ray.remote
-def build_bars_ray(result_path: str, symbol: str, date: str, thresh: dict) -> dict:
+def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
-    ticks_df = load_ticks(result_path, symbol, date, 'trades')
+    ticks_df = load_ticks(symbol, date, 'trades')
     # sample bars
     bars, state = build_bars(ticks_df, thresh)
     return {'date': date, 'thresh': thresh, 'bars': bars}
     
 
-def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path: str, symbol: str, range_frac: int=12) -> list:
+def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
     futures = []
     for row in daily_stats_df.itertuples():
      
@@ -29,7 +29,6 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, result_path
             thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
 
         bars = build_bars_ray.remote(
-            result_path=result_path,
             symbol=symbol, 
             date=row.date,
             thresh=thresh
@@ -67,8 +66,8 @@ def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thr
 
 
 @ray.remote
-def label_bars_ray(bars: list, result_path: str, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
-    ticks_df = load_ticks(result_path, symbol, date, 'trades')
+def label_bars_ray(bars: list, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
+    ticks_df = load_ticks(symbol, date, 'trades')
     labeled_bars = label_bars(
         bars=bars, 
         ticks_df=ticks_df, 
@@ -88,13 +87,12 @@ def label_bars_ray(bars: list, result_path: str, symbol: str, date: str, risk_le
         }
 
 
-def label_bars_dates_ray(bar_dates: list, result_path: str, symbol: str, horizon_mins: int, reward_ratios: list) -> list:
+def label_bars_dates_ray(bar_dates: list, symbol: str, horizon_mins: int, reward_ratios: list) -> list:
 
     futures = []
     for date in bar_dates:
         result = label_bars_ray.remote(
             bars=date['bars'],
-            result_path=result_path,
             symbol=symbol,
             date=date['date'],
             risk_level=date['thresh']['renko_size'],
@@ -144,16 +142,15 @@ def fill_gaps_dates(labeled_bar_dates: list) -> list:
     return labeled_bar_dates, stacked_bars_df
 
 
-def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date: str, thresh: dict, 
-    horizon_mins: int=30, reward_ratios: list=list(np.arange(3, 12, 1)), imbalance_thresh: float=0.95) -> tuple:
+def bars_workflow_ray(symbol: str, start_date: str,  end_date: str, thresh: dict, horizon_mins: int=30, 
+    reward_ratios: list=list(np.arange(3, 12, 1)), imbalance_thresh: float=0.95) -> tuple:
 
     # calculate daily ATR filter
-    daily_vol_df = get_symbol_vol_filter(result_path, symbol, start_date, end_date)
+    daily_vol_df = get_symbol_vol_filter(symbol, start_date, end_date)
     # 1st pass bar sampeing based on ATR
     bar_dates = build_bars_dates_ray(
         daily_stats_df=daily_vol_df,
         thresh=thresh,
-        result_path=result_path,
         symbol=symbol,
         range_frac=12
         )
@@ -163,16 +160,14 @@ def bars_workflow_ray(result_path: str,  symbol: str, start_date: str,  end_date
     bar_dates = build_bars_dates_ray(
         daily_stats_df=daily_bar_stats_df, 
         thresh=thresh, 
-        result_path=result_path, 
         symbol=symbol,
         range_frac=15
         )
     # calcuate stats on 2ed pass bar samples
     daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh)
     # label 2ed pass bar samples
-    labeled_bar_dates = label_bars_dates_ray(bar_dates, result_path, symbol, horizon_mins, reward_ratios)
+    labeled_bar_dates = label_bars_dates_ray(bar_dates, symbol, horizon_mins, reward_ratios)
     # fill daily gaps
     labeled_bar_dates, stacked_bars_df = fill_gaps_dates(labeled_bar_dates)
     
     return daily_bar_stats_df, labeled_bar_dates, stacked_bars_df
-

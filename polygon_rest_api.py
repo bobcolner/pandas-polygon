@@ -11,38 +11,38 @@ else:
     raise ValueError('missing poloyon api key')
 
 
-def validate_response(response):
+def validate_response(response: str):
     if response.status_code == 200:
         return response.json()['results']
     else:
         response.raise_for_status()
 
 
-def get_market_date(date:str, locale='us', market='stocks'):
+def get_market_date(date: str, locale: str='us', market: str='stocks') -> list:
     url = BASE_URL + f"/v2/aggs/grouped/locale/{locale}/market/{market}/{date}?apiKey={API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
-def get_markets():
+def get_markets() -> list:
     url = BASE_URL + f"/v2/reference/markets?apiKey={API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
-def get_locales():
+def get_locales() -> list:
     url = BASE_URL + f"/v2/reference/locales?apiKey={API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
-def get_types():
+def get_types() -> list:
     url = BASE_URL + f"/v2/reference/types?apiKey={API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
-def get_tickers_page(page=1, stock_type='etp'):
+def get_tickers_page(page: int=1, stock_type: str='etp') -> list:
     path = BASE_URL + f"/v2/reference/tickers"
     params = {}
     params['apiKey'] = API_KEY
@@ -59,7 +59,7 @@ def get_tickers_page(page=1, stock_type='etp'):
     return tickers_list
 
 
-def get_all_tickers(start_page=1, end_page=None, stock_type='etp'):
+def get_all_tickers(start_page: int=1, end_page: int=None, stock_type: str='etp') -> list:
     # stock_type: [cs, etp]
     run = True
     page_num = start_page
@@ -77,7 +77,7 @@ def get_all_tickers(start_page=1, end_page=None, stock_type='etp'):
     return all_tickers
 
 
-def get_ticker_details(symbol:str):
+def get_ticker_details(symbol: str):
     url = BASE_URL + f"/v1/meta/symbols/{symbol}/company?apiKey={API_KEY}"
     response = get(url)
     if response.status_code == 200:
@@ -90,8 +90,8 @@ def get_market_status():
     return validate_response(response)
 
 
-def get_stock_ticks_batch(symbol: str, date: str, tick_type: str, timestamp_first=None, 
-    timestamp_limit=None, reverse=False, limit=50000) -> list:
+def get_stock_ticks_batch(symbol: str, date: str, tick_type: str, timestamp_first: int=None, 
+    timestamp_limit: int=None, reverse: bool=False, limit: int=50000) -> list:
 
     if tick_type == 'quotes':
         path = BASE_URL + f"/v2/ticks/stocks/nbbo/{symbol}/{date}"

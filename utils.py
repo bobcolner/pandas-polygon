@@ -411,3 +411,67 @@ for row in daily_vol_df.itertuples():
          'bars': bars
         }
     bar_dates.append(d)    
+
+
+from os import environ
+from time import time_ns
+import websocket as ws
+
+
+if 'POLYGON_API_KEY' in environ:
+    API_KEY = environ['POLYGON_API_KEY']
+else:
+    raise ValueError('missing poloyon api key')
+
+
+def on_message(wsc: ws._app.WebSocketApp, message: str):
+    print(message)
+    with open('data.txt', 'a') as out_file:
+        out_file.write(str(time_ns()) + ' || ' + message + '\n')
+
+
+def on_error(wsc: ws._app.WebSocketApp, error: str):
+    print(error)
+
+
+def on_close(wsc: ws._app.WebSocketApp):
+    print("### closed ###")
+
+
+def on_open(wsc: ws._app.WebSocketApp, symbols: str=None):
+    wsc.send(data='{"action":"auth", "params":"' + API_KEY + '"}')
+    wsc.send(data='{"action":"subscribe","params":"T.SPY, T.GLD"}')
+    # wsc.send(data='{"action":"subscribe","params":"' + symbols + '"}')
+
+
+def run(symbols: str=None):
+    wsc = ws.WebSocketApp(
+        url="wss://alpaca.socket.polygon.io/stocks",
+        on_message = on_message,
+        on_error = on_error,
+        on_close = on_close
+        )
+    wsc.on_open = on_open
+    wsc.run_forever()
+    
+def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str, tick_type: str, 
+    save_local=True, upload_to_s3=True):
+    
+    request_dates = get_open_market_dates(start_date, end_date)
+    print('requested', len(request_dates), 'dates')
+    
+    if upload_to_s3:
+        existing_dates = list_symbol_dates(symbol, tick_type)
+    else:
+        existing_dates = list_dates_from_path(symbol, tick_type, result_path)
+
+    if existing_dates is not None:
+        request_dates = find_remaining_dates(request_dates, existing_dates)
+    
+    print(len(request_dates), 'remaining dates')
+    
+    for date in request_dates:
+        print('fetching:', date)
+        backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)
+
+    

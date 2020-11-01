@@ -79,22 +79,46 @@ def jma_filter_df(df: pd.DataFrame, col: str, expand: bool=True, length: int=7, 
     return df
 
 
-def add_filters(df: pd.DataFrame, col: str) -> pd.DataFrame:
-    df['smooth_med5'] = df[col].rolling(window=5, center=True, min_periods=1).median()
-    df['filter_med5'] = df[col].rolling(window=5, center=False, min_periods=1).median()
-    df['filter_med7'] = df[col].rolling(window=7, center=False, min_periods=1).median()
-    df['filter_jma7'] = jma_rolling_filter(df[col], length=7, phase=50, power=2)
-    df['filter_jma14'] = jma_rolling_filter(df[col], length=14, phase=50, power=2)
-    df['filter_jma28'] = jma_rolling_filter(df[col], length=28, phase=50, power=2)
-    df['filter_jma710'] = jma_rolling_filter(df[col], length=7*10, phase=50, power=2)
-    df['filter_jma7100'] = jma_rolling_filter(df[col], length=7*100, phase=50, power=2)
-    df['filter_jma7100'] = jma_rolling_filter(df[col], length=7*100, phase=50, power=2)
+def add_multiple_jma_df(df: pd.DataFrame, col: str, lengths: list) -> pd.DataFrame:
+    df = df.copy()
+    for length in lengths:
+        # compute rolling std
+        df.loc[:, col+'_'+str(length)+'std'] = df[col].rolling(window=length, min_periods=0).std()
+        # compute jma filter
+        df.loc[:, col+'_jma_'+str(length)] = jma_expanding_filter(df[col], length=length, phase=50, power=2)
+        # compute value - jma filter diff
+        df.loc[:, col+'_jma_'+str(length)+'_diff'] = df[col] - df[col+'_jma_'+str(length)]
+        # compute diff mean
+        df.loc[:, col+'_jma_'+str(length)+'_diff_mean'] = abs(df[col+'_jma_'+str(length)+'_diff']).rolling(window=length, min_periods=0).mean()
+        # compute diff median
+        df.loc[:, col+'_jma_'+str(length)+'_diff_median'] = abs(df[col+'_jma_'+str(length)+'_diff']).rolling(window=length, min_periods=0).median()
     return df
 
 
 def median_outlier_filter(df: pd.DataFrame, col: str='price', window: int=5, zthresh: int=10) -> pd.DataFrame:
+    # https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
     df['filter'] = df[col].rolling(window, center=False, min_periods=1).median()
     df['filter_diff'] = abs(df[col] - df['filter'])
     df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
     return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
 
+
+
+
+import sympy
+cosd = lambda x : sympy.cos( sympy.mpmath.radians(x) )
+
+
+def supersmoother(x: list, n: int=10) -> list:
+    a = exp(-1.414 * 3.14159 / n)
+    b = 2 * a * cosd(1.414 * 180 / n)
+    c2 = b
+    c3 = -a * a
+    c1 = 1 - c2 - c3
+    # @assert n<size(x,1) && n>0 "Argument n out of bounds."
+    super = np.zeros(len(x))
+     # @inbounds for i = 3:length(x)
+    for i in range(3, len(x)):
+        super[i] = c1 * (x[i] + x[i-1]) / 2 + c2 * super[i-1] + c3 * super[i-2]
+
+    return super

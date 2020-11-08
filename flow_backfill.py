@@ -1,4 +1,3 @@
-from os import environ
 from datetime import timedelta, date
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
@@ -25,7 +24,6 @@ def backfill_date_task(symbol_date:tuple, tick_type:str):
         symbol=symbol_date[0],
         date=symbol_date[1],
         tick_type=tick_type,
-        result_path=environ['DATA_PATH'],
         upload_to_s3=True,
         save_local=True
     )

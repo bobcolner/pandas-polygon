@@ -52,7 +52,11 @@ def reset_state(thresh: dict={}) -> dict:
     state['price_min'] = 10 ** 5
     state['price_max'] = 0
     state['price_range'] = 0
-    state['bar_return'] = 0
+    state['price_return'] = 0
+    state['jma_min'] = 10 ** 5
+    state['jma_max'] = 0
+    state['jma_range'] = 0
+    state['jma_return'] = 0
     state['ticks'] = 0
     state['volume'] = 0
     state['dollars'] = 0
@@ -67,19 +71,18 @@ def reset_state(thresh: dict={}) -> dict:
     state['trades']['date_time'] = []
     state['trades']['price'] = []
     state['trades']['volume'] = []
-    state['trades']['side'] = []
     # trigger status
     state['trigger_yet?!'] = 'waiting'
     return state
 
 
-def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
+def check_thresholds(state: dict, last_bar_return: float=0, renko_trigger: str='price_return') -> dict:
 
-    def get_next_renko_thresh(renko_size, last_return, reversal_multiple=2):
-        if last_return >= 0:
+    def get_next_renko_thresh(renko_size: float, last_bar_return: float, reversal_multiple: float) -> tuple:
+        if last_bar_return >= 0:
             thresh_renko_bull = renko_size
             thresh_renko_bear = -renko_size * reversal_multiple
-        elif last_return < 0:
+        elif last_bar_return < 0:
             thresh_renko_bull = renko_size * reversal_multiple
             thresh_renko_bear = -renko_size
         return thresh_renko_bull, thresh_renko_bear
@@ -88,47 +91,49 @@ def bar_thresh(state: dict, last_bar_return: float=0) -> dict:
         try:
             state['thresh']['renko_bull'], state['thresh']['renko_bear'] = get_next_renko_thresh(
                 renko_size=state['thresh']['renko_size'],
-                last_return=last_bar_return,
+                last_bar_return=last_bar_return,
                 reversal_multiple=state['thresh']['renko_reveral_multiple']
             )
         except:
             state['thresh']['renko_bull'] = state['thresh']['renko_size']
             state['thresh']['renko_bear'] = -state['thresh']['renko_size']
 
-        if state['bar_return'] >= state['thresh']['renko_bull']:
+        if state[renko_trigger] >= state['thresh']['renko_bull']:
             state['trigger_yet?!'] = 'renko_up'
-        if state['bar_return'] < state['thresh']['renko_bear']:
+        if state[renko_trigger] < state['thresh']['renko_bear']:
             state['trigger_yet?!'] = 'renko_down'
 
     if 'duration_sec' in state['thresh'] and state['duration_sec'] > state['thresh']['duration_sec']:
         state['trigger_yet?!'] = 'duration'
     if 'ticks' in state['thresh'] and state['ticks'] >= state['thresh']['ticks']:
         state['trigger_yet?!'] = 'tick_coumt'
-    if 'volume' in state['thresh'] and state['volume'] >= state['thresh']['volume']:
-        state['trigger_yet?!'] = 'volume'
-    if 'dollar' in state['thresh'] and state['dollars'] >= state['thresh']['dollar']:
-        state['trigger_yet?!'] = 'dollars'
-    if 'tick_imbalance' in state['thresh'] and abs(state['tick_imbalance']) >= state['thresh']['tick_imbalance']:
-        state['trigger_yet?!'] = 'tick_imbalance'
+    # if 'volume' in state['thresh'] and state['volume'] >= state['thresh']['volume']:
+    #     state['trigger_yet?!'] = 'volume'
+    # if 'dollar' in state['thresh'] and state['dollars'] >= state['thresh']['dollar']:
+    #     state['trigger_yet?!'] = 'dollars'
+    # if 'tick_imbalance' in state['thresh'] and abs(state['tick_imbalance']) >= state['thresh']['tick_imbalance']:
+    #     state['trigger_yet?!'] = 'tick_imbalance'
     if 'volume_imbalance' in state['thresh'] and abs(state['volume_imbalance']) >= state['thresh']['volume_imbalance']:
         state['trigger_yet?!'] = 'volume_imbalance'        
-    if 'dollar_imbalance' in state['thresh'] and abs(state['dollar_imbalance']) >= state['thresh']['dollar_imbalance']:
-        state['trigger_yet?!'] = 'dollar_imbalence'
-    if 'price_range' in state['thresh'] and state['price_range'] >= state['thresh']['price_range']:
-        state['trigger_yet?!'] = 'price_range'
-    if 'return' in state['thresh'] and abs(state['bar_return']) >= state['thresh']['return']:
-        state['trigger_yet?!'] = 'bar_return'
-    if 'tick_run' in state['thresh'] and state['tick_run'] >= state['thresh']['tick_run']:
-        state['trigger_yet?!'] = 'tick_run'
-    if 'volume_run' in state['thresh'] and state['volume_run'] >= state['thresh']['volume_run']:
-        state['trigger_yet?!'] = 'volume_run'
-    if 'dollar_run' in state['thresh'] and state['dollar_run'] >= state['thresh']['dollar_run']:
-        state['trigger_yet?!'] = 'dollar_run'
+    # if 'dollar_imbalance' in state['thresh'] and abs(state['dollar_imbalance']) >= state['thresh']['dollar_imbalance']:
+    #     state['trigger_yet?!'] = 'dollar_imbalence'
+    # if 'price_range' in state['thresh'] and state['price_range'] >= state['thresh']['price_range']:
+    #     state['trigger_yet?!'] = 'price_range'
+    # if 'price_return' in state['thresh'] and abs(state['price_return']) >= state['thresh']['price_return']:
+    #     state['trigger_yet?!'] = 'price_return'
+    # if 'tick_run' in state['thresh'] and state['tick_run'] >= state['thresh']['tick_run']:
+    #     state['trigger_yet?!'] = 'tick_run'
+    # if 'volume_run' in state['thresh'] and state['volume_run'] >= state['thresh']['volume_run']:
+    #     state['trigger_yet?!'] = 'volume_run'
+    # if 'dollar_run' in state['thresh'] and state['dollar_run'] >= state['thresh']['dollar_run']:
+    #     state['trigger_yet?!'] = 'dollar_run'
 
     # override newbar trigger with 'less-then' thresholds
     if 'min_duration_sec' in state['thresh'] and state['duration_sec'] < state['thresh']['min_duration_sec']:
         state['trigger_yet?!'] = 'waiting'
     if 'min_ticks' in state['thresh'] and state['ticks'] < state['thresh']['min_ticks']:
+        state['trigger_yet?!'] = 'waiting'
+    if 'min_price_range' in state['thresh'] and state['price_range'] < state['thresh']['min_price_range']:
         state['trigger_yet?!'] = 'waiting'
 
     return state
@@ -150,13 +155,18 @@ def output_new_bar(state: dict) -> dict:
     new_bar['price_close'] = state['trades']['price'][-1]
     new_bar['price_low'] = state['price_min']
     new_bar['price_high'] = state['price_max']
+    new_bar['price_range'] = state['price_range']
+    new_bar['price_return'] = state['price_return']
+    new_bar['jma_low'] = state['jma_min']
+    new_bar['jma_high'] = state['jma_max']
+    new_bar['jma_range'] = state['jma_range']
+    new_bar['jma_return'] = state['jma_return']
     # new_bar['price_mean'] = np.array(state['trades']['price']).mean() 
     # new_bar['price_std'] = np.array(state['trades']['price']).std()
     # new_bar['price_q10'] = np.quantile(state['trades']['price'], q=0.1)
     # new_bar['price_q50'] = np.quantile(state['trades']['price'], q=0.5)
     # new_bar['price_q90'] = np.quantile(state['trades']['price'], q=0.9)
-    new_bar['price_range'] = state['price_range']
-    new_bar['bar_return'] = state['bar_return']
+    
     # volume weighted price
     dsw = DescrStatsW(data=state['trades']['price'], weights=state['trades']['volume'])
     qtiles = dsw.quantile(probs=[0.1, 0.5, 0.9]).values
@@ -178,10 +188,11 @@ def output_new_bar(state: dict) -> dict:
     return new_bar
 
 
-def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={}):
+def update_bars(tick: dict, state: dict, bars: list, thresh={}) -> tuple:
     
     state['trades']['date_time'].append(tick['date_time'])
     state['trades']['price'].append(tick['price'])
+    state['trades']['jma'].append(tick['jma'])
     state['trades']['volume'].append(tick['volume']) 
     
     if len(state['trades']['price']) >= 2:
@@ -204,43 +215,78 @@ def update_state_and_bars(tick: dict, state: dict, output_bars: list, thresh={})
     state['price_min'] = tick['price'] if tick['price'] < state['price_min'] else state['price_min']
     state['price_max'] = tick['price'] if tick['price'] > state['price_max'] else state['price_max']
     state['price_range'] = state['price_max'] - state['price_min']
-    state['bar_return'] = tick['price'] - state['trades']['price'][0]
+    state['price_return'] = tick['price'] - state['trades']['price'][0]
+    state['jma_min'] = tick['jma'] if tick['jma'] < state['jma_min'] else state['jma_min']
+    state['jma_max'] = tick['jma'] if tick['jma'] > state['jma_max'] else state['jma_max']
+    state['jma_range'] = state['jma_max'] - state['jma_min']
+    state['jma_return'] = tick['jma'] - state['trades']['jma'][0]
     
-    last_bar_side = output_bars[-1]['bar_return'] if len(output_bars) > 0 else 0
-    state = bar_thresh(state, last_bar_return=last_bar_side)
+    state = check_thresholds(
+        state=state, 
+        last_bar_return=bars[-1]['jma_return'],
+        renko_trigger='jma_return'
+        )
     
     if state['trigger_yet?!'] != 'waiting':
         new_bar = output_new_bar(state)
-        output_bars.append(new_bar)
+        bars.append(new_bar)
         state = reset_state(thresh)
     
-    return output_bars, state
+    return bars, state
 
 
-def time_bars(df:pd.DataFrame, date:str, freq='15min') -> list:
+def filter_tick(tick: dict, state: list) -> tuple:
+
+    jma_state = jma_filter_update(value=tick['price'], state=state[-1]['jma_state'], length=5, power=0.5)
+    diff = tick['price'] - jma_state['jma']
+    tick.update({
+        'jma': jma_state['jma'],
+        'diff': diff,
+        'pct_diff': diff / tick['price'],
+        'jma_state': jma_state,
+        })
+    state.append(tick) # add new tick to buffer
+    state = state[-100:] # keep most recent items
+    if len(state) < 30: # minium buffer size
+        return None, state
+    else:
+        diffs = [tick['jma_state']['diff'] for tick in state]
+        thresh_price = np.median(abs(diffs)) * 3
+        if abs_diff < thresh_price: # outlier check
+        # if pct_diff > 0.0001: # outlier check
+            return tick, state # return clean tick        
+        else:
+            state.pop(-1) # remove 'bad' tick from state
+            return None, state # tick removed by filter
+
+
+def build_bars(ticks_df: pd.DataFrame, thresh: dict):
+
+    tick_state = [{'jma_state': {'e0': 0, 'e1': 0, 'e2': 0, 'jma': ticks_df.price.values[0]}}]
+    bar_state = reset_state(thresh)
+    bars = []
+    for t in ticks_df.itertuples():
+        tick = {
+            'date_time': t.date_time,
+            'price': t.price,
+            'volume': t.volume
+        }
+        tick, tick_state = filter_tick(tick, tick_state)
+        if tick:
+            bars, bar_state = update_bars(tick, bar_state, bars, thresh)
+    return bars, bar_state
+
+
+def time_bars(ticks_df: pd.DataFrame, date: str, freq: str='15min') -> list:
     start_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     end_date = start_date + datetime.timedelta(days=1)
     dates = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
-    output_bars = []
+    bars = []
     for i in tqdm(list(range(len(dates)-2))):
-        ticks = df.loc[(df.date_time >= dates[i]) & (df.date_time < dates[i+1])]
-        _, state = build_bars(df=ticks, thresh={})
+        ticks = ticks_df.loc[(ticks_df.date_time >= dates[i]) & (ticks_df.date_time < dates[i+1])]
+        _, state = build_bars(ticks_df=ticks, thresh={})
         bar = output_new_bar(state)
         bar['open_at'] = dates[i]
         bar['close_at'] = dates[i+1]
-        output_bars.append(bar)
-    return output_bars
-
-
-def build_bars(ticks_df:pd.DataFrame, thresh: dict):
-    state = reset_state(thresh)
-    output_bars = []
-    # for row in tqdm(ticks_df.itertuples(), total=ticks_df.shape[0]):
-    for row in ticks_df.itertuples():
-        tick = {
-            'date_time': row.date_time,
-            'price': row.price,
-            'volume': row.volume
-        }
-        output_bars, state = update_state_and_bars(tick, state, output_bars, thresh)
-    return output_bars, state
+        bars.append(bar)
+    return bars

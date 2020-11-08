@@ -5,12 +5,11 @@ from pathlib import Path
 import pandas as pd
 from pyarrow.dataset import dataset, field
 from pyarrow._dataset import FileSystemDataset
+from polygon_backfill import get_ticks_date_df
 
 
-try:
-    result_path = environ['DATA_PATH']
-except:    
-    result_path = '/Users/bobcolner/QuantClarity/pandas-polygon/data'
+LOCAL_PATH = environ['LOCAL_PATH']
+S3_PATH = environ['S3_PATH']
 
 
 def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
@@ -46,27 +45,27 @@ s3fs = get_s3fs_client(cached=False)
 
 
 def list_symbol_dates(symbol: str, tick_type: str='trades') -> str:
-    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/symbol={symbol}/", refresh=True)
+    paths = s3fs.ls(path=S3_PATH + f"/{tick_type}/symbol={symbol}/", refresh=True)
     return [path.split('date=')[1] for path in paths]
 
 
 def list_symbols(tick_type: str='trades') -> str:
-    paths = s3fs.ls(path=f"polygon-equities/data/{tick_type}/", refresh=True)
+    paths = s3fs.ls(path=S3_PATH + f"/{tick_type}/", refresh=True)
     return [path.split('symbol=')[1] for path in paths]
 
 
 def remove_symbol(symbol: str, tick_type: str):
-    path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
+    path = S3_PATH + f"/{tick_type}/symbol={symbol}/"
     s3fs.rm(path, recursive=True)
 
 
 def show_symbol_storage_used(symbol: str, tick_type: str) -> dict:
-    path = f"polygon-equities/data/{tick_type}/symbol={symbol}/"
+    path = S3_PATH + f"/{tick_type}/symbol={symbol}/"
     return s3fs.du(path)
 
 
 def get_date_df_from_s3(symbol: str, date: str, tick_type: str='trades', columns=None) -> pd.DataFrame:    
-    byte_data = s3fs.cat(f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+    byte_data = s3fs.cat(S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
     if columns:
         df = pd.read_feather(BytesIO(byte_data), columns=columns)
     else:
@@ -75,26 +74,24 @@ def get_date_df_from_s3(symbol: str, date: str, tick_type: str='trades', columns
 
 
 def date_df_to_file(df: pd.DataFrame, symbol:str, date:str, tick_type: str) -> str:
-    path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
+    path = LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/"
     Path(path).mkdir(parents=True, exist_ok=True)
     df.to_feather(path+'data.feather', version=2)
     return path+'data.feather'
 
 
 def put_date_df_to_s3(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
-    from tempfile import NamedTemporaryFile
-    from polygon_backfill import get_ticks_date_df
     df = get_ticks_date_df(symbol, date, tick_type)
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
-        s3fs.put(tmp_ref1.name, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+        s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
     return df
 
 
 def load_ticks(symbol:str, date:str, tick_type: str='trades') -> pd.DataFrame:
     try:
         print(symbol, date, 'trying to get ticks from local file...')
-        df = pd.read_feather(result_path + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
+        df = pd.read_feather(LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
     except FileNotFoundError:
         try:
             print(symbol, date, 'trying to get ticks from s3...')
@@ -117,7 +114,7 @@ def get_s3_dataset(symbol: str, tick_type: str='trades') -> FileSystemDataset:
         endpoint_override=environ['B2_ENDPOINT_URL']
     )
     ds = dataset(
-        source=f"polygon-equities/data/{tick_type}/symbol={symbol}/",
+        source=S3_PATH + f"/{tick_type}/symbol={symbol}/",
         format='feather',
         filesystem=s3,
         partitioning='hive',
@@ -127,7 +124,7 @@ def get_s3_dataset(symbol: str, tick_type: str='trades') -> FileSystemDataset:
 
 
 def get_local_dataset(tick_type: str, symbol: str=None) -> FileSystemDataset:
-    full_path = result_path + f"/{tick_type}/"
+    full_path = LOCAL_PATH + f"/{tick_type}/"
     if symbol:
         full_path = full_path + f"symbol={symbol}/"
     ds = dataset(
@@ -149,19 +146,8 @@ def get_symbol_trades_df(symbols: list, start_date: str, end_date: str) -> pd.Da
 def get_market_daily_df(start_date: str, end_date: str, symbol: str=None) -> pd.DataFrame:
     ds = get_local_dataset(tick_type='daily', symbol='market')
     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
-    ds = ds.to_table(filter=filter_exp)
-    df = ds.to_pandas()
+    df = ds.to_table(filter=filter_exp).to_pandas()
     if symbol:
         # df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
         df = df.loc[df['symbol'] == symbol]
     return df.reset_index(drop=True)
-
-
-def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-    from filters import jma_filter_df
-    df = get_market_daily_df(start_date, end_date, symbol)
-    df.loc[:, 'range'] = df['high'] - df['low']
-    df = jma_filter_df(df, col='range', length=7, phase=0, power=1)
-    df.loc[:, 'range_jma_lag'] = df['range_jma'].shift(1)
-    df = df.dropna().reset_index(drop=True)
-    return df

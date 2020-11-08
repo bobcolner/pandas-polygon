@@ -1,3 +1,4 @@
+from os import environ
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import pandas as pd
@@ -5,10 +6,8 @@ from polygon_rest_api import get_market_date, get_stocks_ticks_date
 from polygon_s3 import get_s3fs_client
 
 
-try:
-    result_path = environ['DATA_PATH']
-except:    
-    result_path = '/Users/bobcolner/QuantClarity/pandas-polygon/data'
+LOCAL_PATH = environ['LOCAL_PATH']
+S3_PATH = environ['S3_PATH']
 
 
 def validate_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -61,7 +60,7 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
                                 'y': 'exchange_epoch',
                                 'q': 'sequence',
                                 'i': 'trade_id',
-                                'c': 'condition',
+                                'c': 'conditions',
                                 'z': 'tape'
                                 })
         # optimize datatypes
@@ -85,6 +84,8 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
                                 't': 'sip_epoch',
                                 'y': 'exchange_epoch',
                                 'q': 'sequence',
+                                'c': 'conditions',
+                                'i': 'indicators',
                                 'z': 'tape'
                                 })
         # optimze datatypes
@@ -104,8 +105,7 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
-    from filters import median_outlier_filter
+def clean_trades_df(df: pd.DataFrame) -> pd.DataFrame:
     # get origional number of ticks
     og_tick_count = df.shape[0]
     # drop irrgular trade conditions
@@ -126,21 +126,19 @@ def clean_trades_df(df: pd.DataFrame, small: bool=True) -> pd.DataFrame:
     print('dropped', droped_rows, 'ticks (', round((droped_rows / og_tick_count) * 100, 2), '%)')
     # sort df
     df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
-    if small:
-        df = df[['sip_dt', 'price', 'size']]
-        return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)
-    else:
-        return df.reset_index(drop=True)
+    # small cols subset
+    df = df[['sip_dt', 'price', 'size']]
+    return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)
 
 
-def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades', clean: bool=True, small: bool=True) -> pd.DataFrame:
+def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades', clean: bool=True) -> pd.DataFrame:
     ticks = get_stocks_ticks_date(symbol, date, tick_type)
     if len(ticks) < 1:
         return pd.DataFrame() # return empty df
     else:    
         df = ticks_to_df(ticks, tick_type)
     if tick_type == 'trades' and clean:
-        df = clean_trades_df(df, small)
+        df = clean_trades_df(df)
     return validate_df(df)
 
 
@@ -162,7 +160,7 @@ def get_open_market_dates(start_date: str, end_date: str) -> list:
 def list_dates_from_path(symbol: str, tick_type: str) -> list:
     from os import listdir
     # assumes 'hive' {date}={yyyy-mm-dd}/data.{format} filename template
-    dates_path = f"{result_path}/{tick_type}/symbol={symbol}"
+    dates_path = f"{LOCAL_PATH}/{tick_type}/symbol={symbol}"
     if Path(dates_path).exists():    
         file_list = listdir(dates_path)
         if '.DS_Store' in file_list:
@@ -189,13 +187,13 @@ def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, uploa
         df = get_market_date_df(date)
         tick_type = 'daily'
     else: # get tick data
-        df = get_ticks_date_df(symbol, date, tick_type)
+        df = get_ticks_date_df(symbol, date, tick_type, clean=False)
         if len(df) < 1:
             print('No Data for', symbol, date)
             return df
 
     if save_local: # save to local file
-        full_path = result_path + f"/{tick_type}/symbol={symbol}/date={date}/"
+        full_path = LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/"
         Path(full_path).mkdir(parents=True, exist_ok=True)
         file_path = full_path + 'data.feather'
         print('Saving:', symbol, date, 'to local file')
@@ -207,6 +205,6 @@ def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, uploa
     
     if upload_to_s3: # upload to s3/b2
         print('Uploading:', symbol, date, 'to S3/B2')
-        s3fs.put(file_path, f"polygon-equities/data/{tick_type}/symbol={symbol}/date={date}/data.feather")
+        s3fs.put(file_path, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
     return df

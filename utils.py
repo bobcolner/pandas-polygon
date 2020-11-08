@@ -115,16 +115,6 @@ def timeit(func):
 import scipy.stats as stats
 
 
-def compound_interest(principle:float, rate:float, peroids:int): 
-    # Calculates compound interest  
-    total_return = principle * (pow((1 + rate / 100), peroids)) 
-    print("Total Interest $:", round(total_return, 2))
-    print("Anualized Peroid %", round(total_return / principle, 1) * 100)
-
-# compount daily for 1 year (market days)
-compound_interest(principle=100000, rate=.5, peroids=250)
-
-
 from scipy.cluster.hierarchy import linkage, is_valid_linkage, fcluster
 from scipy.spatial.distance import pdist
 
@@ -475,3 +465,40 @@ def backfill_dates(symbol: str, start_date: str, end_date: str, result_path: str
         backfill_date(symbol, date, tick_type, result_path, save_local, upload_to_s3)
 
     
+
+
+def jma_filter_update(series_last: float, e0_last: float, e1_last: float, e2_last: float,
+    jma_last: float, length: int=7, phase: int=50, power: int=2) -> tuple:
+
+    if phase < -100:
+        phase_ratio = 0.5
+    elif phase > 100:
+        phase_ratio = 2.5
+    else:
+        phase_ratio = phase / (100 + 1.5)
+    beta = 0.45 * (length - 1) / (0.45 * (length - 1) + 2)
+    alpha = pow(beta, power)
+    e0_next = (1 - alpha) * series_last + alpha * e0_last
+    e1_next = (series_last - e0_next) * (1 - beta) + beta * e1_last
+    e2_next = (e0_next + phase_ratio * e1_next - jma_last) * pow(1 - alpha, 2) + pow(alpha, 2) * e2_last
+    jma_next = e2_next + jma_last
+    return jma_next, e0_next, e1_next, e2_next
+
+
+def jma_rolling_filter(series: pd.Series, length: int=7, phase: int=50, power: int=2) -> list:
+
+    e0_next = 0
+    e1_next = 0
+    e2_next = 0
+    jma_next = series.values[0]
+    jma = []
+    for value in series:
+        jma_next, e0_next, e1_next, e2_next  = jma_filter_update(
+            series_last=value, e0_last=e0_next, e1_last=e1_next,
+            e2_last=e2_next, jma_last=jma_next, length=length,
+            phase=phase, power=power
+        )
+        jma.append(jma_next)
+
+    jma[0:(length-1)] = [None] * (length-1)
+    return jma    

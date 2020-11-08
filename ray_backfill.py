@@ -1,22 +1,30 @@
 import ray
 from tenacity import retry, stop_after_attempt
 from polygon_backfill import get_open_market_dates, find_remaining_dates, backfill_date
-from polygon_s3 import get_symbol_dates
+from polygon_s3 import get_symbol_dates, load_ticks
 
 
 @ray.remote
 @retry(stop=stop_after_attempt(2))
 class Backfill(object):
+
+    def load_ticks(symbol: str, date: str):
+        df = load_ticks(
+            symbol=symbol,
+            date=date,
+            tick_type='trades'
+        )
+        return df
+
     def backfill_date(symbol: str, date: str):
         df = backfill_date(
             symbol=symbol,
             date=date,
             tick_type='trades',
-            result_path='/Users/bobcolner/QuantClarity/pandas-polygon/data',
             save_local=True,
             upload_to_s3=True,
         )
-        return True
+        return df
 
 
 def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list):

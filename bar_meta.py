@@ -1,18 +1,18 @@
-# https://robotwealth.com/zorro-132957/
 import datetime as dt
 import numpy as np
 import pandas as pd
 import ray
-from polygon_s3 import load_ticks, get_market_daily_df
+from polygon_s3 import load_date_df
+# get_market_daily_df
 from bar_samples import build_bars
 from bar_labels import label_bars, get_concurrent_stats
 from filters import jma_filter_df
-
+# https://robotwealth.com/zorro-132957/
 
 @ray.remote
 def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
-    ticks_df = load_ticks(symbol, date, 'trades')
+    ticks_df = load_date_df(symbol, date, 'trades')
     # sample bars
     bars, state = build_bars(ticks_df, thresh)
     return {'date': date, 'thresh': thresh, 'bars': bars}
@@ -24,9 +24,6 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str
      
         if 'range_jma_lag' in daily_stats_df.columns:
             thresh.update({'renko_size': row.range_jma_lag / range_frac})
-
-        if 'price_close_lag' in daily_stats_df.columns:
-            thresh.update({'min_price_range': row.price_close_lag * 0.0005})
 
         if 'price_wmean_jma_lag' in daily_stats_df.columns:
             thresh.update({'min_price_wmean_jma_range': row.price_wmean_jma_lag * 0.0005})
@@ -76,7 +73,7 @@ def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thr
 
 @ray.remote
 def label_bars_ray(bars: list, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
-    ticks_df = load_ticks(symbol, date, 'trades')
+    ticks_df = load_date_df(symbol, date, 'trades')
     labeled_bars = label_bars(
         bars=bars, 
         ticks_df=ticks_df, 

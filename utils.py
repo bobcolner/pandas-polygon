@@ -1,3 +1,15 @@
+def compound_interest(principle: float, rate: float, peroids: int): 
+    # Calculates compound interest  
+    total_return = principle * (pow((1 + rate / 100), peroids)) 
+    print("Total Interest $:", round(total_return, 2))
+    print("Anualized Peroid %", round(total_return / principle, 1) * 100)
+
+
+def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
+    from glob import glob
+    return pd.concat(map(reader, glob(path.join('', glob_string))), ignore_index=True)
+
+
 from io import BytesIO
 import pandas as pd
 import pyarrow.feather as pf
@@ -502,3 +514,28 @@ def jma_rolling_filter(series: pd.Series, length: int=7, phase: int=50, power: i
 
     jma[0:(length-1)] = [None] * (length-1)
     return jma    
+
+def clean_trades_df(df: pd.DataFrame) -> pd.DataFrame:
+    # get origional number of ticks
+    og_tick_count = df.shape[0]
+    # drop irrgular trade conditions
+    df = df.loc[df.irregular==False]
+    # drop trades with >1sec timestamp diff
+    dt_diff = (df.sip_dt - df.exchange_dt)
+    df = df.loc[dt_diff < pd.to_timedelta(1, unit='S')]
+    # add median filter and remove outlier trades
+    df = median_outlier_filter(df)
+    # remove duplicate trades
+    num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
+    if num_dups > 0: 
+        print(num_dups, 'duplicated trade removed')
+        df = df.drop_duplicates(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size'])
+    # drop trades with zero size/volume
+    df = df.loc[df['size'] > 0]
+    droped_rows = og_tick_count - df.shape[0]
+    print('dropped', droped_rows, 'ticks (', round((droped_rows / og_tick_count) * 100, 2), '%)')
+    # sort df
+    df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
+    # small cols subset
+    df = df[['sip_dt', 'price', 'size']]
+    return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)    

@@ -1,24 +1,5 @@
-from os import environ
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 import pandas as pd
 from polygon_rest_api import get_market_date, get_stocks_ticks_date
-from polygon_s3 import get_s3fs_client
-
-
-LOCAL_PATH = environ['LOCAL_PATH']
-S3_PATH = environ['S3_PATH']
-
-
-def validate_df(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None:
-        raise ValueError('df is NoneType')
-    if len(df) < 1:
-        raise ValueError('zero row df')
-    elif any(df.count() == 0):
-        raise ValueError('df has fields with no values. Recent historic data may not be ready for consumption')
-    else:
-        return df
  
 
 def market_daily_to_df(daily: list) -> pd.DataFrame: 
@@ -31,7 +12,7 @@ def market_daily_to_df(daily: list) -> pd.DataFrame:
                             'l': 'low',
                            'vw': 'vwap',
                             't': 'epoch'})
-    # remove non-ascii symbols
+    # remove symbols with non-ascii characters
     ascii_mask = df.symbol.apply(lambda x: x.isascii())
     df = df.loc[ascii_mask].reset_index(drop=True)
     # add datetime column
@@ -72,6 +53,7 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
         df['irregular'] = df['irregular'].astype('bool')
         df['blank'] = df['blank'].astype('bool')
         df['afterhours'] = df['afterhours'].astype('bool')
+        df = df.drop(columns=['green', 'blank', 'afterhours'])
 
     elif tick_type == 'quotes':
         df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S', 'z'])
@@ -105,106 +87,34 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def clean_trades_df(df: pd.DataFrame) -> pd.DataFrame:
-    # get origional number of ticks
-    og_tick_count = df.shape[0]
-    # drop irrgular trade conditions
-    df = df.loc[df.irregular==False]
-    # drop trades with >1sec timestamp diff
-    dt_diff = (df.sip_dt - df.exchange_dt)
-    df = df.loc[dt_diff < pd.to_timedelta(1, unit='S')]
-    # add median filter and remove outlier trades
-    df = median_outlier_filter(df)
-    # remove duplicate trades
-    num_dups = sum(df.duplicated(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size']))
-    if num_dups > 0: 
-        print(num_dups, 'duplicated trade removed')
-        df = df.drop_duplicates(subset=['sip_dt', 'exchange_dt', 'sequence', 'trade_id', 'price', 'size'])
-    # drop trades with zero size/volume
-    df = df.loc[df['size'] > 0]
-    droped_rows = og_tick_count - df.shape[0]
-    print('dropped', droped_rows, 'ticks (', round((droped_rows / og_tick_count) * 100, 2), '%)')
-    # sort df
-    df = df.sort_values(['sip_dt', 'exchange_dt', 'sequence'])
-    # small cols subset
-    df = df[['sip_dt', 'price', 'size']]
-    return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)
+def validate_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None:
+        raise ValueError('df is NoneType')
+    if len(df) < 1:
+        raise ValueError('zero row df')
+    elif any(df.count() == 0):
+        raise ValueError('df has fields with no values. Recent historic data may not be ready for consumption')
+    else:
+        return df
 
 
-def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades', clean: bool=True) -> pd.DataFrame:
+def get_ticks_date_df(symbol: str, date: str, tick_type: str='trades') -> pd.DataFrame:
     ticks = get_stocks_ticks_date(symbol, date, tick_type)
-    if len(ticks) < 1:
-        return pd.DataFrame() # return empty df
-    else:    
-        df = ticks_to_df(ticks, tick_type)
-    if tick_type == 'trades' and clean:
-        df = clean_trades_df(df)
+    df = ticks_to_df(ticks, tick_type)
     return validate_df(df)
 
 
 def get_market_date_df(date: str) -> pd.DataFrame:
     daily = get_market_date(locale='us', market='stocks', date=date)
-    if len(daily) < 1:
+    if len(daily) == 0:
         raise ValueError('get_market_date returned zero rows')
+
     return market_daily_to_df(daily)
 
 
-def get_open_market_dates(start_date: str, end_date: str) -> list:
-    from pandas_market_calendars import get_calendar
-    market = get_calendar('NYSE')
-    schedule = market.schedule(start_date=start_date, end_date=end_date)
-    dates = [i.date().isoformat() for i in schedule.index]
-    return dates
-
-
-def list_dates_from_path(symbol: str, tick_type: str) -> list:
-    from os import listdir
-    # assumes 'hive' {date}={yyyy-mm-dd}/data.{format} filename template
-    dates_path = f"{LOCAL_PATH}/{tick_type}/symbol={symbol}"
-    if Path(dates_path).exists():    
-        file_list = listdir(dates_path)
-        if '.DS_Store' in file_list:
-            file_list.remove('.DS_Store')
-        existing_dates = [i.split('=')[1] for i in file_list]
-    else:
-        existing_dates = []
-    return existing_dates
-
-
-def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
-    from datetime import date
-    existing_dates_set = set(existing_dates)
-    remaining_dates = [x for x in request_dates if x not in existing_dates_set and x <= date.today().isoformat()]
-    return remaining_dates
-
-
-def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
-    
-    if upload_to_s3:
-        s3fs = get_s3fs_client()
-
-    if symbol == 'market':
+def get_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+    if (symbol == 'market') or (tick_type == 'daily'):
         df = get_market_date_df(date)
-        tick_type = 'daily'
-    else: # get tick data
-        df = get_ticks_date_df(symbol, date, tick_type, clean=False)
-        if len(df) < 1:
-            print('No Data for', symbol, date)
-            return df
-
-    if save_local: # save to local file
-        full_path = LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/"
-        Path(full_path).mkdir(parents=True, exist_ok=True)
-        file_path = full_path + 'data.feather'
-        print('Saving:', symbol, date, 'to local file')
-        df.to_feather(path=file_path, version=2)
     else:
-        with NamedTemporaryFile(mode='w+b') as tmp_ref1:
-            file_path = tmp_ref1.name
-            df.to_feather(path=file_path, version=2)
-    
-    if upload_to_s3: # upload to s3/b2
-        print('Uploading:', symbol, date, 'to S3/B2')
-        s3fs.put(file_path, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
-
+        df = get_ticks_date_df(symbol, date, tick_type)
     return df

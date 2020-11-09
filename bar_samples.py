@@ -232,11 +232,9 @@ def filter_tick(tick: dict, state: list) -> tuple:
         length=5,
         power=0.5
         )
-    diff = tick['price'] - jma_state['jma']
-    tick.update({
+    tick.update({ # add jma features to 'tick'
         'jma': jma_state['jma'],
-        'diff': diff,
-        'pct_diff': diff / jma_state['jma'],
+        'pct_diff': (tick['price'] - jma_state['jma']) / jma_state['jma'],
         'jma_state': jma_state,
         })
     state.append(tick) # add new tick to buffer
@@ -251,7 +249,7 @@ def filter_tick(tick: dict, state: list) -> tuple:
             return None, state # tick removed by filter
 
 
-def build_bars(ticks_df: pd.DataFrame, thresh: dict):
+def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
 
     tick_state = [{'jma_state': {'e0': 0, 'e1': 0, 'e2': 0, 'jma': ticks_df.price.values[0]}}]
     bar_state = reset_state(thresh)
@@ -265,6 +263,7 @@ def build_bars(ticks_df: pd.DataFrame, thresh: dict):
         tick, tick_state = filter_tick(tick, tick_state)
         if tick:
             bars, bar_state = update_bars(tick, bar_state, bars, thresh)
+
     return bars, bar_state
 
 

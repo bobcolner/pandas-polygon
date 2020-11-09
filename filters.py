@@ -50,8 +50,8 @@ def jma_filter_update(value: float, state: dict, length: int=7, phase: int=0, po
     jma_next = e2_next + state['jma']
 
     new_state = {
-        'e0': e0_next, 
-        'e1': e1_next, 
+        'e0': e0_next,
+        'e1': e1_next,
         'e2': e2_next,
         'jma': jma_next,
         }

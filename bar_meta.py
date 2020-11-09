@@ -28,6 +28,9 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str
         if 'price_close_lag' in daily_stats_df.columns:
             thresh.update({'min_price_range': row.price_close_lag * 0.0005})
 
+        if 'price_wmean_jma_lag' in daily_stats_df.columns:
+            thresh.update({'min_price_wmean_jma_range': row.price_wmean_jma_lag * 0.0005})
+
         if 'imbalance_thresh_jma_lag' in daily_stats_df.columns:
             thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
 
@@ -56,7 +59,6 @@ def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thr
             'date': date_d['date'], 
             'bar_count': len(date_d['bars']), 
             'imbalance_thresh': pd.Series(imbalances).quantile(q=imbalance_thresh),
-            # 'duration_min_dist': pd.Series(durations).describe(),
             'duration_min_mean': pd.Series(durations).mean(),
             'duration_min_median': pd.Series(durations).median(),
             'price_range_mean': pd.Series(ranges).mean(),

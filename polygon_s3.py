@@ -37,12 +37,12 @@ def get_s3fs_client(cached: bool=False):
 s3fs = get_s3fs_client(cached=False)
 
 
-def list_symbol_dates(symbol: str, tick_type: str='trades') -> str:
+def list_symbol_dates(symbol: str, tick_type: str) -> str:
     paths = s3fs.ls(path=S3_PATH + f"/{tick_type}/symbol={symbol}/", refresh=True)
     return [path.split('date=')[1] for path in paths]
 
 
-def list_symbols(tick_type: str='trades') -> str:
+def list_symbols(tick_type: str) -> str:
     paths = s3fs.ls(path=S3_PATH + f"/{tick_type}/", refresh=True)
     return [path.split('symbol=')[1] for path in paths]
 
@@ -57,7 +57,7 @@ def show_symbol_storage_used(symbol: str, tick_type: str) -> dict:
     return s3fs.du(path)
 
 
-def get_date_df_from_s3(symbol: str, date: str, tick_type: str='trades', columns: list=None) -> pd.DataFrame:
+def get_date_df_from_s3(symbol: str, date: str, tick_type: str, columns: list=None) -> pd.DataFrame:
     byte_data = s3fs.cat(S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
     if columns:
         df = pd.read_feather(BytesIO(byte_data), columns=columns)
@@ -87,11 +87,11 @@ def load_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     
     except FileNotFoundError:
         try:
-            print(symbol, date, 'trying to get ticks from s3...')
+            print(symbol, date, 'trying to get ticks from s3/b2...')
             df = get_date_df_from_s3(symbol, date, tick_type)
     
         except FileNotFoundError:
-            print(symbol, date, 'trying to get data from polygon API and save to s3...')
+            print(symbol, date, 'trying to get data from polygon API and save to s3/b2...')
             df = get_date_df(symbol, date, tick_type)
             put_date_df_to_s3(df, symbol, date, tick_type)
 

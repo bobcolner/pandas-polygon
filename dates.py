@@ -1,8 +1,6 @@
 from os import environ
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 import pandas as pd
-from polygon_s3 import get_s3fs_client    
 
 
 LOCAL_PATH = environ['LOCAL_PATH']
@@ -37,34 +35,36 @@ def find_remaining_dates(request_dates: str, existing_dates: str) -> list:
     return remaining_dates
 
 
-def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
+# def backfill_date(symbol: str, date: str, tick_type: str, save_local=True, upload_to_s3=False) -> pd.DataFrame:
+# from tempfile import NamedTemporaryFile
+# from polygon_s3 import get_s3fs_client
     
-    if upload_to_s3:
-        s3fs = get_s3fs_client()
+#     if upload_to_s3:
+#         s3fs = get_s3fs_client()
 
-    if symbol == 'market':
-        df = get_market_date_df(date)
-        tick_type = 'daily'
-    else: # get tick data
-        try:
-            df = get_ticks_date_df(symbol, date, tick_type, clean=False)
-        except:
-            print('No Data for', symbol, date)
-            return pd.DataFrame()
+#     if symbol == 'market':
+#         df = get_market_date_df(date)
+#         tick_type = 'daily'
+#     else: # get tick data
+#         try:
+#             df = get_ticks_date_df(symbol, date, tick_type, clean=False)
+#         except:
+#             print('No Data for', symbol, date)
+#             return pd.DataFrame()
 
-    if save_local: # save to local file
-        full_path = LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/"
-        Path(full_path).mkdir(parents=True, exist_ok=True)
-        file_path = full_path + 'data.feather'
-        print('Saving:', symbol, date, 'to local file')
-        df.to_feather(path=file_path, version=2)
-    else:
-        with NamedTemporaryFile(mode='w+b') as tmp_ref1:
-            file_path = tmp_ref1.name
-            df.to_feather(path=file_path, version=2)
+#     if save_local: # save to local file
+#         full_path = LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/"
+#         Path(full_path).mkdir(parents=True, exist_ok=True)
+#         file_path = full_path + 'data.feather'
+#         print('Saving:', symbol, date, 'to local file')
+#         df.to_feather(path=file_path, version=2)
+#     else:
+#         with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+#             file_path = tmp_ref1.name
+#             df.to_feather(path=file_path, version=2)
     
-    if upload_to_s3: # upload to s3/b2
-        print('Uploading:', symbol, date, 'to S3/B2')
-        s3fs.put(file_path, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
+#     if upload_to_s3: # upload to s3/b2
+#         print('Uploading:', symbol, date, 'to S3/B2')
+#         s3fs.put(file_path, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
-    return df
+#     return df

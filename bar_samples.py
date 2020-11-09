@@ -238,15 +238,21 @@ def filter_tick(tick: dict, state: list) -> tuple:
         'jma_state': jma_state,
         })
     state.append(tick) # add new tick to buffer
-    if len(state) < length: # minium buffer size
+    if len(state) < length: # filling window/buffer
+        return None, state
+    elif tick['volume'] < 1: # zero volume/size tick
+        state.pop(-1) # remove 'bad' tick from state
+        return None, state
+    elif abs(tick['sip_dt'] - tick['exchange_dt']) > pd.to_timedelta(1, unit='S'): # remove large ts deltas
+        state.pop(-1)
         return None, state
     else:
         state = state[-300:] # keep most recent items
         if tick['pct_diff'] < 0.003: # outlier check
-            return tick, state # return clean tick        
+            return tick, state # return clean tick
         else:
-            state.pop(-1) # remove 'bad' tick from state
-            return None, state # tick removed by filter
+            state.pop(-1)
+            return None, state # tick removed by outlier filter
 
 
 def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:

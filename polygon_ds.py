@@ -65,3 +65,4 @@ def get_dates_df(symbol: str, tick_type: str, start_date: str, end_date: str, so
 #         # df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
 #         df = df.loc[df['symbol'] == symbol]
 #     return df.reset_index(drop=True)
+#     

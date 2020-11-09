@@ -3,35 +3,6 @@ import numpy as np
 import pandas as pd
 
 
-def median_outlier_filter(df: pd.DataFrame, col: str='price', window: int=5, zthresh: int=10) -> pd.DataFrame:
-    # https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
-    df['filter'] = df[col].rolling(window, center=False, min_periods=window).median()
-    df['filter_diff'] = abs(df[col] - df['filter'])
-    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
-    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
-
-
-def rema_filter_update(series_last: float, rema_last: float, length=14, lamb=0.5) -> float:
-    # regularized ema
-    alpha = 2 / (length + 1)
-    rema = (rema_last + alpha * (series_last - rema_last) + 
-        lamb * (2 * rema_last - rema[2])) / (lamb + 1)
-    return rema
-
-
-def rema_filter(series: pd.Series, length: int, lamb: float) -> list:
-
-    rema_next = series.values[0]
-    rema = []
-    for value in series:
-        rema_next = rema_filter_update(
-            series_last=value, rema_last=rema_next, length=length, lamb=lamb
-        )
-        rema.append(rema_next)
-
-    return rema
-
-
 def jma_filter_update(value: float, state: dict, length: int=7, phase: int=0, power: int=2) -> dict:
 
     if phase < -100:
@@ -82,12 +53,57 @@ def jma_expanding_filter(series: pd.Series, length: int=7, phase: int=50, power:
     return running_jma
 
 
-def jma_filter_df(df: pd.DataFrame, col: str, expand: bool=True, length: int=7, phase: int=50, power: int=2) -> pd.DataFrame:
+def jma_filter_df(df: pd.DataFrame, col: str, expand: bool=False, length: int=7, phase: int=0, power: float=2.0) -> pd.DataFrame:
     if expand:
         df.loc[:, col+'_jma'] = jma_expanding_filter(df[col], length, phase, power)
     else:
         df.loc[:, col+'_jma'] = jma_rolling_filter(df[col], length, phase, power)
     return df
+
+
+def rema_filter_update(series_last: float, rema_last: float, length=14, lamb=0.5) -> float:
+    # regularized ema
+    alpha = 2 / (length + 1)
+    rema = (rema_last + alpha * (series_last - rema_last) + 
+        lamb * (2 * rema_last - rema[2])) / (lamb + 1)
+    return rema
+
+
+def rema_filter(series: pd.Series, length: int, lamb: float) -> list:
+
+    rema_next = series.values[0]
+    rema = []
+    for value in series:
+        rema_next = rema_filter_update(
+            series_last=value, rema_last=rema_next, length=length, lamb=lamb
+        )
+        rema.append(rema_next)
+
+    return rema
+
+
+def supersmoother(x: list, n: int=10) -> np.ndarray:
+    
+    assert (n > 0) and (n < len(x))
+
+    a = math.exp(-1.414 * 3.14159 / n)
+    b = math.cos(math.radians(1.414 * 180 / n))
+    c2 = b
+    c3 = -a * a
+    c1 = 1 - c2 - c3
+    ss = np.zeros(len(x))
+    for i in range(3, len(x)):
+        ss[i] = c1 * (x[i] + x[i-1]) / 2 + c2 * ss[i-1] + c3 * ss[i-2]
+
+    return ss
+
+
+def median_outlier_filter(df: pd.DataFrame, col: str='price', window: int=5, zthresh: int=10) -> pd.DataFrame:
+    # https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
+    df['filter'] = df[col].rolling(window, center=False, min_periods=window).median()
+    df['filter_diff'] = abs(df[col] - df['filter'])
+    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
+    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)
 
 
 def add_volitiliy_features(df, col: str, length: int) -> pd.DataFrame:   
@@ -118,19 +134,3 @@ def add_bands(df: pd.DataFrame, base_col: str, vol_col: str, multipler: int=2):
     df.loc[:, base_col+'_upper'] = df[base_col] + df[vol_col] * multipler
     df.loc[:, base_col+'_lower'] = df[base_col] - df[vol_col] * multipler
     return df
-
-
-def supersmoother(x: list, n: int=10) -> np.ndarray:
-    
-    assert (n > 0) and (n < len(x))
-
-    a = math.exp(-1.414 * 3.14159 / n)
-    b = math.cos(math.radians(1.414 * 180 / n))
-    c2 = b
-    c3 = -a * a
-    c1 = 1 - c2 - c3
-    ss = np.zeros(len(x))
-    for i in range(3, len(x)):
-        ss[i] = c1 * (x[i] + x[i-1]) / 2 + c2 * ss[i-1] + c3 * ss[i-2]
-
-    return ss

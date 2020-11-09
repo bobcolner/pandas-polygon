@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import ray
 from polygon_s3 import load_date_df
-# get_market_daily_df
+from polygon_ds import get_dates_df
 from bar_samples import build_bars
 from bar_labels import label_bars, get_concurrent_stats
 from filters import jma_filter_df
@@ -12,7 +12,7 @@ from filters import jma_filter_df
 @ray.remote
 def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
-    ticks_df = load_date_df(symbol, date, 'trades')
+    ticks_df = load_date_df(symbol, date, tick_type='trades')
     # sample bars
     bars, state = build_bars(ticks_df, thresh)
     return {'date': date, 'thresh': thresh, 'bars': bars}
@@ -151,8 +151,15 @@ def fill_gaps_dates(labeled_bar_dates: list) -> list:
 
 
 def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-    adj_start_date = (dt.datetime.fromisoformat(start_date) - dt.timedelta(days=7)).date().isoformat()
-    df = get_market_daily_df(adj_start_date, end_date, symbol)
+    
+    adj_start_date = (dt.datetime.fromisoformat(start_date) - dt.timedelta(days=10)).date().isoformat()
+    df = get_dates_df(
+        tick_type='daily', 
+        start_date=adj_start_date, 
+        end_date=end_date, 
+        source='local',
+        )
+    df = df.loc[df['symbol'] == symbol].reset_index(drop=True)
     # range/volitiliry metric
     df.loc[:, 'range'] = df['high'] - df['low']
     df = jma_filter_df(df, col='range', length=5, phase=0, power=1)
@@ -161,6 +168,7 @@ def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.Dat
     df.loc[:, 'price_close_lag'] = df['price_close'].shift(1)
     df = jma_filter_df(df, col='price_wmean', length=7, phase=0, power=1)
     df.loc[:, 'price_wmean_jma_lag'] = df['price_wmean_jma'].shift(1)
+    
     return df.dropna().reset_index(drop=True)
 
 

@@ -122,17 +122,17 @@ def add_condition_groups(ticks: list) -> list:
     blank_conditions = [6, 17, 18, 19, 24, 26, 32, 35, 39, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 54, 55, 56, 57]
     for idx, tick in enumerate(ticks):
         if 'c' in tick:
-            ticks[idx]['green'] = any(isin(tick['c'], green_conditions))
+            # ticks[idx]['green'] = any(isin(tick['c'], green_conditions))
             ticks[idx]['irregular'] = any(isin(tick['c'], irregular_conditions))
-            ticks[idx]['afterhours'] = any(isin(tick['c'], 12))
-            ticks[idx]['odd_lot'] = any(isin(tick['c'], 37))
-            ticks[idx]['blank'] = any(isin(tick['c'], blank_conditions))
+            # ticks[idx]['afterhours'] = any(isin(tick['c'], 12))
+            # ticks[idx]['odd_lot'] = any(isin(tick['c'], 37))
+            # ticks[idx]['blank'] = any(isin(tick['c'], blank_conditions))
         else:
-            ticks[idx]['green'] = False
+            # ticks[idx]['green'] = False
             ticks[idx]['irregular'] = False
-            ticks[idx]['afterhours'] = False
-            ticks[idx]['odd_lot'] = False
-            ticks[idx]['blank'] = True
+            # ticks[idx]['afterhours'] = False
+            # ticks[idx]['odd_lot'] = False
+            # ticks[idx]['blank'] = True
     return ticks
 
 
@@ -143,24 +143,19 @@ def get_stocks_ticks_date(symbol: str, date: str, tick_type: str) -> list:
     batch = 0
     run = True
     while run == True:
-        # get batch of ticks
         batch += 1
-        print('Batch#:', batch, symbol, date)
         ticks_batch = get_stock_ticks_batch(symbol, date, tick_type, timestamp_first=last_tick, limit=limit)
         if len(ticks_batch) < 1: # empty tick batch
-            print('Empty Batch!', batch, symbol, date)
+            print(symbol, date, 'empty batch!', batch)
             run = False
             continue
+        print(symbol, date, 'tick batch:', batch, 'downloaded:', len(ticks_batch), 'ticks')
         # add conditions groups    
         ticks_batch = add_condition_groups(ticks_batch)
-        # update last_tick
+        # update last_tick timestamp
         last_tick = ticks_batch[-1]['t'] # sip ts
-        # logging
-        print('Downloaded:', len(ticks_batch), 'ticks', symbol, date)
-        # append batch to ticks list
-        ticks = ticks + ticks_batch
-        # check if we are done pulling ticks
-        if len(ticks_batch) < limit:
+        ticks = ticks + ticks_batch # append batch to ticks list
+        if len(ticks_batch) < limit: # check if we are done pulling ticks
             run = False
         elif len(ticks_batch) == limit:
             del ticks[-1] # drop last row to avoid dups

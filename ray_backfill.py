@@ -1,41 +1,26 @@
 import ray
 from tenacity import retry, stop_after_attempt
-from polygon_backfill import get_open_market_dates, find_remaining_dates, backfill_date
-from polygon_s3 import get_symbol_dates, load_ticks
+from dates import get_open_market_dates, find_remaining_dates
+from polygon_s3 import list_symbol_dates, get_and_save_date_df, smart_fetch_date_df
 
 
 @ray.remote
 @retry(stop=stop_after_attempt(2))
-class Backfill(object):
-
-    def load_ticks(symbol: str, date: str):
-        df = load_ticks(
-            symbol=symbol,
-            date=date,
-            tick_type='trades'
-        )
-        return df
-
-    def backfill_date(symbol: str, date: str):
-        df = backfill_date(
-            symbol=symbol,
-            date=date,
-            tick_type='trades',
-            save_local=True,
-            upload_to_s3=True,
-        )
-        return df
+def backfill_ray_task(symbol: str, date: str, tick_type: str):
+    # df = get_and_save_date_df(symbol, date, tick_type)
+    df = smart_fetch_date_df(symbol, date, tick_type)
+    return True
 
 
-def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list):
+def backfill(start_date: str, end_date: str, symbols: list, tick_type: str) -> list:
+
     request_dates = get_open_market_dates(start_date, end_date)
     futures = []
-    backfill_actor = Backfill.remote()
     for symbol in symbols:
-        existing_dates = get_symbol_dates(symbol, tick_type='trades')
+        existing_dates = list_symbol_dates(symbol, tick_type)
         remaining_dates = find_remaining_dates(request_dates, existing_dates)
         for date in remaining_dates:
-            done = backfill_actor.backfill_date(symbol, date)
-            futures.append(done)
+            result = backfill_ray_task.remote(symbol, date, tick_type)
+            futures.append(result)
 
-    ray.get(futures)
+    return ray.get(futures)

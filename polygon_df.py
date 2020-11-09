@@ -33,7 +33,7 @@ def market_daily_to_df(daily: list) -> pd.DataFrame:
 
 def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
     if tick_type == 'trades':
-        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z', 'green', 'irregular', 'blank', 'afterhours'])
+        df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'i', 'x', 'p', 's', 'c', 'z', 'irregular'])
         df = df.rename(columns={'p': 'price',
                                 's': 'size',
                                 'x': 'exchange_id',
@@ -49,11 +49,7 @@ def ticks_to_df(ticks: list, tick_type: str) -> pd.DataFrame:
         df['size'] = df['size'].astype('uint32')
         df['exchange_id'] = df['exchange_id'].astype('uint8')
         df['trade_id'] = df['trade_id'].astype('string')
-        df['green'] = df['green'].astype('bool')
         df['irregular'] = df['irregular'].astype('bool')
-        df['blank'] = df['blank'].astype('bool')
-        df['afterhours'] = df['afterhours'].astype('bool')
-        df = df.drop(columns=['green', 'blank', 'afterhours'])
 
     elif tick_type == 'quotes':
         df = pd.DataFrame(ticks, columns=['t', 'y', 'q', 'x', 'X', 'p', 'P', 's', 'S', 'z'])

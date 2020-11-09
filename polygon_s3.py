@@ -79,22 +79,28 @@ def put_date_df_to_s3(df: pd.DataFrame, symbol: str, date: str, tick_type: str) 
         s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
 
-def load_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
-    
+def get_and_save_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+    print(symbol, date, 'getting data fron polygon api')
+    df = get_date_df(symbol, date, tick_type)
+    print(symbol, date, 'putting data to s3/b2')
+    put_date_df_to_s3(df, symbol, date, tick_type)
+    print(symbol, date, 'saving data to local file')
+    path = date_df_to_file(df, symbol, date, tick_type)
+    return df
+
+
+def smart_fetch_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     try:
         print(symbol, date, 'trying to get ticks from local file...')
         df = pd.read_feather(LOCAL_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
-    
     except FileNotFoundError:
         try:
             print(symbol, date, 'trying to get ticks from s3/b2...')
             df = get_date_df_from_s3(symbol, date, tick_type)
-    
         except FileNotFoundError:
             print(symbol, date, 'trying to get data from polygon API and save to s3/b2...')
             df = get_date_df(symbol, date, tick_type)
             put_date_df_to_s3(df, symbol, date, tick_type)
-
         finally:
             print(symbol, date, 'saving ticks to local file')
             path = date_df_to_file(df, symbol, date, tick_type)

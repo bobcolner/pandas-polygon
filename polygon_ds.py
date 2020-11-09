@@ -48,21 +48,3 @@ def get_dates_df(symbol: str, tick_type: str, start_date: str, end_date: str, so
     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
     df = ds.to_table(filter=filter_exp).to_pandas()
     return df
-
-
-# def get_symbol_trades_df(symbols: list, start_date: str, end_date: str) -> pd.DataFrame:
-#     ds = get_local_dataset(tick_type='trades', symbol=symbol)
-#     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
-#     df = ds.to_table(filter=filter_exp).to_pandas()
-#     return df
-
-
-# def get_market_daily_df(start_date: str, end_date: str, symbol: str=None) -> pd.DataFrame:
-#     ds = get_local_dataset(tick_type='daily', symbol='market')
-#     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
-#     df = ds.to_table(filter=filter_exp).to_pandas()
-#     if symbol:
-#         # df = ds.to_table(filter=field('symbol') == symbol).to_pandas()
-#         df = df.loc[df['symbol'] == symbol]
-#     return df.reset_index(drop=True)
-#     

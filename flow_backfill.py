@@ -2,10 +2,10 @@ from datetime import timedelta, date
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.executors import DaskExecutor, LocalExecutor
-from dates import get_open_market_dates, find_remaining_dates, backfill_date
-from polygon_s3 import list_symbol_dates
+from dates import get_open_market_dates, find_remaining_dates
+from polygon_s3 import list_symbol_dates, get_and_save_date_df
 
-
+ 
 @task(max_retries=2, retry_delay=timedelta(seconds=2))
 def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list, tick_type: str) -> list:
     request_dates = get_open_market_dates(start_date, end_date)
@@ -20,13 +20,11 @@ def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list, ti
 
 @task(max_retries=2, retry_delay=timedelta(seconds=2))
 def backfill_date_task(symbol_date:tuple, tick_type:str):
-    df = backfill_date(
-        symbol=symbol_date[0],
-        date=symbol_date[1],
-        tick_type=tick_type,
-        upload_to_s3=True,
-        save_local=True
-    )
+    df = get_and_save_date_df(
+        symbol=symbol_date[0], 
+        date=symbol_date[1], 
+        tick_type=tick_type
+        )
     return True
 
 
@@ -46,16 +44,16 @@ def get_flow():
     return flow
 
 
-def run_backfill(symbols: list, tick_type: str, start_date: str, n_workers: int=1, 
-    threads_per_worker: int=4, processes: bool=False):
+def run_backfill(symbols: list, tick_type: str, start_date: str, end_date: str=(date.today() - timedelta(days=1)).isoformat(),
+    n_workers: int=1, threads_per_worker: int=4, processes: bool=False):
 
     flow = get_flow()
     # executor = LocalExecutor()
     executor = DaskExecutor(
         cluster_kwargs={
             'n_workers': n_workers,
-            'processes': False,
-            'threads_per_worker': 8
+            'processes': processes,
+            'threads_per_worker': threads_per_worker,
         }
     )
     flow_state = flow.run(
@@ -63,8 +61,7 @@ def run_backfill(symbols: list, tick_type: str, start_date: str, n_workers: int=
         symbols=symbols,
         tick_type=tick_type,
         start_date=start_date,
-        # end_date=(date.today() - timedelta(days=1)).isoformat(), # yesterday
-        end_date=date.today().isoformat(), # today
+        end_date=end_date,
     )
     return flow_state
 
@@ -75,4 +72,7 @@ if __name__ == '__main__':
         symbols=['GLD', 'GOLD'], 
         tick_type='trades', 
         start_date='2020-01-01'
+        # symbols=['market'], 
+        # tick_type='daily', 
+        # start_date='2020-01-01'
         )

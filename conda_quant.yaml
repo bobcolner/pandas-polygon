@@ -3,39 +3,65 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python = 3.7
+  - python=3.7
   - mkl
+  # - nomkl
+  # - openblas
   - numpy
   - scipy
   - scikit-learn
   - statsmodels
-  - pandas_ta
-  - pyarrow >=1.0
-  - pandas >=1.1
+  # - category_encoders
+  # - fastcluster
+  # - pyclustering
+  # - pingouin
+  - pyarrow>=2.0
+  - pandas>=1.1
   - pandas_market_calendars
   - ipython
   - ipdb
+  - filprofiler
   - jupyterlab
   - dask
   - distributed
+  # - modin
+  # - swifter
+  # - psutil
   - cachey
   - tenacity
   - prefect[viz, gcp, aws]
   - boto3
   - google-api-python-client
   - requests
-  - websocket-client
-  - wsaccel
+  - trio
   - fsspec
   - s3fs
   - tqdm
   - matplotlib
-  - graphviz
   - bokeh
   - qgrid
+  # - cvxpy
+  # - numba
+  # - pot
+  # - networkx
+  # - graphviz
+  # - dash
+  # - dash-bootstrap-components
   - pip
   - pip:
+    - trio-websockets
     - pandas-ta
+    - finta
+    # - fracdiff
     - pandas-bokeh
     - finplot
-    - ray
+    - ray[tune]
+    - tune-sklearn
+    # - skranger
+    # - ppscore
+    # - persist-queue[extra]
+    # - dcor
+
+# pip install -f http://h2o-release.s3.amazonaws.com/h2o/latest_stable_Py.html h2o
+# brew tap adoptopenjdk/openjdk
+# brew cask install adoptopenjdk14

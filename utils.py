@@ -10,6 +10,37 @@ def read_matching_files(glob_string: str, reader=pd.read_csv) -> pd.DataFrame:
     return pd.concat(map(reader, glob(path.join('', glob_string))), ignore_index=True)
 
 
+
+def add_filter_features(df: pd.DataFrame, col: str, length: int=10, power: float=1.0) -> pd.DataFrame:
+    # compute jma filter
+    df.loc[:, col+'_jma_'+str(length)] = jma_expanding_filter(df[col], length=length, power=power)
+    # jma diff(n)
+    df.loc[:, col+'_jma_'+str(length)+'_diff1'] = df.loc[:, col+'_jma_'+str(length)].diff(1)
+    df.loc[:, col+'_jma_'+str(length)+'_diff3'] = df.loc[:, col+'_jma_'+str(length)].diff(3)
+    df.loc[:, col+'_jma_'+str(length)+'_diff6'] = df.loc[:, col+'_jma_'+str(length)].diff(6)
+    df.loc[:, col+'_jma_'+str(length)+'_diff9'] = df.loc[:, col+'_jma_'+str(length)].diff(9)
+    # compute value - jma filter residual
+    df.loc[:, col+'_jma_'+str(length)+'_resid'] = df[col] - df[col+'_jma_'+str(length)]
+    # compute resid abs mean
+    df.loc[:, col+'_jma_'+str(length)+'_resid_mean'] = abs(df[col+'_jma_'+str(length)+'_resid']).rolling(window=length, min_periods=0).mean()
+    # compute resid abs median
+    df.loc[:, col+'_jma_'+str(length)+'_resid_median'] = abs(df[col+'_jma_'+str(length)+'_resid']).rolling(window=length, min_periods=0).median()
+    # compute resid abs jma
+    df.loc[:, col+'_jma_'+str(length)+'_resid_jma'] = jma_expanding_filter(abs(df[col+'_jma_'+str(length)+'_resid']), length=length, phase=50, power=2)
+    return df
+
+
+def add_bands(df: pd.DataFrame, base_col: str, vol_col: str, multipler: int=2):
+    df.loc[:, base_col+'_upper'] = df[base_col] + df[vol_col] * multipler
+    df.loc[:, base_col+'_lower'] = df[base_col] - df[vol_col] * multipler
+    return df
+
+
+def add_volitiliy_features(df, col: str, length: int) -> pd.DataFrame:   
+    df.loc[:, col+'_'+str(length)+'_std'] = df[col].rolling(window=length, min_periods=0).std()
+    return df
+
+
 from io import BytesIO
 import pandas as pd
 import pyarrow.feather as pf

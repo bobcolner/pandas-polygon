@@ -2,32 +2,30 @@ import datetime as dt
 import numpy as np
 import pandas as pd
 import ray
-from polygon_s3 import smart_fetch_date_df
+from polygon_s3 import fetch_date_df
 from polygon_ds import get_dates_df
 from bar_samples import build_bars
 from bar_labels import label_bars, get_concurrent_stats
 from filters import jma_filter_df
 # https://robotwealth.com/zorro-132957/
 
+
 @ray.remote
 def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
-    ticks_df = smart_fetch_date_df(symbol, date, tick_type='trades')
+    ticks_df = fetch_date_df(symbol, date, tick_type='trades')
     # sample bars
     bars, state = build_bars(ticks_df, thresh)
     return {'symbol': symbol, 'date': date, 'thresh': thresh, 'bars': bars}
-    
+
 
 def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
     futures = []
     for row in daily_stats_df.itertuples():
-     
         if 'range_jma_lag' in daily_stats_df.columns:
             thresh.update({'renko_size': row.range_jma_lag / range_frac})
-
-        if 'price_wmean_jma_lag' in daily_stats_df.columns:
-            thresh.update({'min_price_wmean_jma_range': row.price_wmean_jma_lag * 0.0005})
-
+        # if 'vwap_jma_lag' in daily_stats_df.columns:
+        #     thresh.update({'min_jma_range': row.vwap_jma_lag * 0.0005})
         if 'imbalance_thresh_jma_lag' in daily_stats_df.columns:
             thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
 
@@ -73,7 +71,7 @@ def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thr
 
 @ray.remote
 def label_bars_ray(bars: list, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
-    ticks_df = smart_fetch_date_df(symbol, date, 'trades')
+    ticks_df = fetch_date_df(symbol, date, 'trades')
     labeled_bars = label_bars(
         bars=bars, 
         ticks_df=ticks_df, 
@@ -129,7 +127,8 @@ def fill_gap(bar_1: dict, bar_2: dict, renko_size: float, price_col: str='price_
     return pd.DataFrame(fill_dict).to_dict(orient='records')
 
 
-def fill_gaps_dates(labeled_bar_dates: list) -> list:
+def fill_gaps_dates(labeled_bar_dates: list) -> tuple:
+    
     for idx, date in enumerate(labeled_bar_dates):
         if idx == 0:
             continue
@@ -145,43 +144,30 @@ def fill_gaps_dates(labeled_bar_dates: list) -> list:
     stacked = []
     for date in labeled_bar_dates:
         stacked = stacked + date['labeled_bars']
+
     stacked_bars_df = pd.DataFrame(stacked)
+
     return labeled_bar_dates, stacked_bars_df
 
 
-
 def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-    
+    # get exta 10 days
     adj_start_date = (dt.datetime.fromisoformat(start_date) - dt.timedelta(days=10)).date().isoformat()
-    df = get_dates_df(
-        tick_type='daily', 
-        start_date=adj_start_date, 
-        end_date=end_date, 
-        source='local',
-        )
+    # get market daily df
+    df = get_dates_df(symbol='market', tick_type='daily', start_date=adj_start_date, end_date=end_date, source='local')
     df = df.loc[df['symbol'] == symbol].reset_index(drop=True)
     # range/volitiliry metric
     df.loc[:, 'range'] = df['high'] - df['low']
-    df = jma_filter_df(df, col='range', length=5, phase=0, power=1)
+    df = jma_filter_df(df, col='range', length=5, power=1)
     df.loc[:, 'range_jma_lag'] = df['range_jma'].shift(1)
     # recent price/value metric
-    df.loc[:, 'price_close_lag'] = df['price_close'].shift(1)
-    df = jma_filter_df(df, col='price_wmean', length=7, phase=0, power=1)
-    df.loc[:, 'price_wmean_jma_lag'] = df['price_wmean_jma'].shift(1)
-    
+    df.loc[:, 'price_close_lag'] = df['close'].shift(1)
+    df = jma_filter_df(df, col='vwap', length=7, power=1)
+    df.loc[:, 'vwap_jma_lag'] = df['vwap_jma'].shift(1)
     return df.dropna().reset_index(drop=True)
 
 
-def bars_workflow_ray(
-    symbol: str,
-    start_date: str,
-    end_date: str,
-    thresh: dict,
-    horizon_mins: int=30,
-    reward_ratios: list=list(np.arange(3, 12, 1)),
-    imbalance_thresh: float=0.95
-    ) -> tuple:
-
+def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict) -> tuple:
     # calculate daily ATR filter
     daily_vol_df = get_symbol_vol_filter(symbol, start_date, end_date)
     # 1st pass bar sampeing based on ATR
@@ -192,7 +178,7 @@ def bars_workflow_ray(
         range_frac=12
         )
     # calcuate stats on 1st pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, 0.95)
     # 2ed pass bar sampleing based on ATR and imbalance threshold
     bar_dates = build_bars_dates_ray(
         daily_stats_df=daily_bar_stats_df,
@@ -201,10 +187,15 @@ def bars_workflow_ray(
         range_frac=15
         )
     # calcuate stats on 2ed pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, 0.95)
     # label 2ed pass bar samples
-    labeled_bar_dates = label_bars_dates_ray(bar_dates, symbol, horizon_mins, reward_ratios)
+    labeled_bar_dates = label_bars_dates_ray(
+        bar_dates, 
+        symbol, 
+        label_length_mins=30, 
+        label_reward_ratios=list(np.arange(3, 12, 1))
+        )
     # fill daily gaps
     labeled_bar_dates, stacked_bars_df = fill_gaps_dates(labeled_bar_dates)
-    
+
     return daily_bar_stats_df, labeled_bar_dates, stacked_bars_df

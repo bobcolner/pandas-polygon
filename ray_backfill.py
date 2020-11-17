@@ -1,14 +1,13 @@
 import ray
 from tenacity import retry, stop_after_attempt
 from dates import get_open_market_dates, find_remaining_dates
-from polygon_s3 import list_symbol_dates, get_and_save_date_df, smart_fetch_date_df
+from polygon_s3 import list_symbol_dates, get_and_save_date_df
 
 
 @ray.remote
 @retry(stop=stop_after_attempt(2))
 def backfill_ray_task(symbol: str, date: str, tick_type: str):
-    # df = get_and_save_date_df(symbol, date, tick_type)
-    df = smart_fetch_date_df(symbol, date, tick_type)
+    df = get_and_save_date_df(symbol, date, tick_type)
     return True
 
 

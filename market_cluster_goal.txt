@@ -1,0 +1,39 @@
+goal statmnt
+- i want a large clusters of symbols (hundreds) to seach for predicitive pairs/groups. Outside this proxmiity group of trading pairs I want to also use latent/centroid/average signals the ''
+
+High-Dimensions Consequences?
+• Therelativedifferenceofdistancesbetweendifferentpointsdecreases with increasing dimensionality
+• Thedistancesbetweenpointscannotbeusedinordertodifferentiate between points
+• Themorethedimensionalityisincreasing,themorethedatadistribution degenerates to random noise
+• Allpointsarealmostequidistantfromeachother―thereareno clusters to discover in high dimensional spaces!
+
+# clutering: topdown+bottomup hcust
+market ->
+	log returns ->
+	cor distance (robust, regularized) ->
+	denoise ->
+	detone (main 'market' component -save as cluster) ->
+	hclust(k = [start=1, end=10, step=1] # top down
+	hclust(k = [start=10, end=100, step=10]) # bottom up
+
+
+# clutering: subspace bi-clustering + bottomup hclust
+market ->
+	log returns ->
+	cor distance (robust, regularized) ->
+	denoise ->
+	detone (main 'market' component -save as cluster) ->
+	*subspace_clust(k~20, overlapping clusters) ->
+	hclust(k = [start=10, end=100, step=10]) # bottom up (TODO include liquidity/volitility in output)
+
+#  TODO hypothesis: symbols with multiple cluster assigment interesting for trading models.
+
+
+# market manifold (sparse)prototype symbols
+market ->
+	log returns ->
+	cor distance (robust, regularized) ->
+	denoise ->
+    detone (main 'market' component -save as cluster) -> (optional)
+	sparse_pca(k=10)
+ 

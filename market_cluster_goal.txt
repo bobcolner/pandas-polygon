@@ -7,10 +7,21 @@ High-Dimensions Consequences?
 • Themorethedimensionalityisincreasing,themorethedatadistribution degenerates to random noise
 • Allpointsarealmostequidistantfromeachother―thereareno clusters to discover in high dimensional spaces!
 
+# clutering hir-modula-latent-facto model:
+market ->
+    log returns ->
+    gaussianize ->
+    robust/sparse cov -> (LedoitWolf, OAS)
+    denoise -> (const_resid_eigen, target_shrink, spectral)
+    detone (main 'market' component -save as cluster) ->
+    corex(1) -> corex(3) -> corex(20)
+
+
 # clutering: topdown+bottomup hcust
 market ->
 	log returns ->
-	cor distance (robust, regularized) ->
+    gaussianize ->
+	cor distance (robust(loss), sparse(reg)) ->
 	denoise ->
 	detone (main 'market' component -save as cluster) ->
 	hclust(k = [start=1, end=10, step=1] # top down
@@ -20,7 +31,7 @@ market ->
 # clutering: subspace bi-clustering + bottomup hclust
 market ->
 	log returns ->
-	cor distance (robust, regularized) ->
+	cor distance (robust(loss), sparse(reg)) ->
 	denoise ->
 	detone (main 'market' component -save as cluster) ->
 	*subspace_clust(k~20, overlapping clusters) ->

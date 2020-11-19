@@ -15,6 +15,7 @@ dependencies:
   # - fastcluster
   # - pyclustering
   # - pingouin
+  # - SubCMedians  # https://pypi.org/project/SubCMedians/#description
   - pyarrow>=2.0
   - pandas>=1.1
   - pandas_market_calendars
@@ -22,6 +23,7 @@ dependencies:
   - ipdb
   - filprofiler
   - jupyterlab
+  - pandas-profiling
   - dask
   - distributed
   # - modin
@@ -65,3 +67,15 @@ dependencies:
 # pip install -f http://h2o-release.s3.amazonaws.com/h2o/latest_stable_Py.html h2o
 # brew tap adoptopenjdk/openjdk
 # brew cask install adoptopenjdk14
+
+# https://github.com/gregversteeg/gaussianize
+
+# https://github.com/gregversteeg/LinearCorex
+# https://github.com/hrayrhar/T-CorEx
+# git clone https://github.com/gregversteeg/bio_corex.git
+
+# https://github.com/ChongYou/subspace-clustering
+
+# https://github.com/padilha/biclustlib
+
+# https://github.com/udellgroup/pyglrm

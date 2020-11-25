@@ -10,11 +10,13 @@ High-Dimensions Consequences?
 # clutering hir-modula-latent-facto model:
 market ->
     log returns ->
+    add_small_noise ->  # add isotropic Gaussian noise with 10−4 variance.
     gaussianize ->
-    robust/sparse cov -> (LedoitWolf, OAS)
-    denoise -> (const_resid_eigen, target_shrink, spectral)
-    detone (main 'market' component -save as cluster) ->
-    corex(1) -> corex(3) -> corex(20)
+    data -> corex(1) resids -> corex(1) resids -> corex(1)  # 'info sieve' /'Incremental CorEx'
+        or:
+    data -> corex(1) resids -> corex(7) resids -> corex(30)  # incremental residuals
+        or:
+    data -> corex(100) factor scores -> corex(7) factor scores corex(1)  # joint estimation
 
 
 # clutering: topdown+bottomup hcust

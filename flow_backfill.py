@@ -45,7 +45,7 @@ def get_flow():
 
 
 def run_backfill(symbols: list, tick_type: str, start_date: str, end_date: str=(date.today() - timedelta(days=1)).isoformat(),
-    n_workers: int=1, threads_per_worker: int=4, processes: bool=False):
+    n_workers: int=4, threads_per_worker: int=8, processes: bool=False):
 
     flow = get_flow()
     # executor = LocalExecutor()

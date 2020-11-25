@@ -15,18 +15,22 @@ def market_daily_to_df(daily: list) -> pd.DataFrame:
     # remove symbols with non-ascii characters
     ascii_mask = df.symbol.apply(lambda x: x.isascii())
     df = df.loc[ascii_mask].reset_index(drop=True)
+    # remove binary null characters "\x00" from the symbol string
+    df.loc[:, 'symbol'] = df.symbol.apply(lambda x: x.replace("\x00", ""))
     # add datetime column
     df['date_time'] = pd.to_datetime(df['epoch'] * 10**6).dt.normalize()
     df = df.drop(columns='epoch')
+    # add midprice
+    df.loc[:, 'midprice'] = df.apply(lambda row: (row['high'] + row['low'] + row['open'] + row['close']) / 4, axis=1)
     # fix vwap
     mask = ~(df.vwap.between(df.low, df.high)) # vwap outside the high/low range
-    df.loc[mask, 'vwap'] = df.loc[mask, 'close'] # replace bad vwap with close price
+    df.loc[mask, 'vwap'] = df.loc[mask, 'midprice'] # replace bad vwap with midprice
     # add dollar total
     df['dollar_total'] = df['vwap'] * df['volume']
     # optimze datatypes
     df['symbol'] = df['symbol'].astype('string')
     df['volume'] = df['volume'].astype('uint64')
-    for col in ['dollar_total', 'vwap', 'open', 'close', 'high', 'low']:
+    for col in ['dollar_total', 'vwap', 'midprice', 'open', 'close', 'high', 'low']:
         df[col] = df[col].astype('float32')
     return df
 

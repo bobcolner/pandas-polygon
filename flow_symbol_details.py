@@ -6,15 +6,12 @@ from prefect.engine.executors import DaskExecutor
 from polygon_rest_api import get_ticker_details
 
 
-# import data
-npdf = pd.read_parquet('npdf.parquet')
-
 # setup results handler
 result_filename = "{task_full_name}.prefect"
 
 
 @task(checkpoint=True, target=result_filename)
-def symbol_details_task(symbol:str) -> dict:
+def symbol_details_task(symbol: str) -> dict:
     print(symbol)
     details = get_ticker_details(symbol)
     return details
@@ -27,24 +24,38 @@ def reduce_list(dict_list:list) -> pd.DataFrame:
     return pd.DataFrame(dict_list_nona)
 
 
-# result_store = GCSResult(bucket="instasize_prefect_workflows", location=result_filename)
-# result_store = LocalResult(dir=Path(__file__).parent.absolute() / 'results', location=result_filename)
-result_store = LocalResult(dir='/Users/bobcolner/QuantClarity/tmp', location=result_filename)
+result_store = LocalResult(dir='/Users/bobcolner/QuantClarity/pandas-polygon/data', location=result_filename)
 
-with Flow(name="symbol-details-flow", result=result_store) as flow:
-    details_list = symbol_details_task.map(symbol=npdf.columns)    
-    details_df = reduce_list(details_list)
+def get_flow():
+    with Flow(name="symbol-details-flow", result=result_store) as flow:
+        symbols = Parameter('symbols', default=['GLD','SPY'])
+        details_list = symbol_details_task.map(symbol=symbols)
+        details_df = reduce_list(details_list)
+    return flow
 
 
-executor = DaskExecutor(
-    cluster_kwargs={
-        'n_workers':4,
-        'processes':True,
-        'threads_per_worker':8
-    }
-)
+def run_flow(symbols: list, n_workers: int=4, threads_per_worker: int=8, processes: bool=False):
+    
+    flow = get_flow()
+    # executor = LocalExecutor()
+    executor = DaskExecutor(
+        cluster_kwargs={
+            'n_workers': n_workers,
+            'processes': processes,
+            'threads_per_worker': threads_per_worker,
+        }
+    )
+    flow_state = flow.run(
+        executor=executor,
+        symbols=symbols,
+        )
+    return flow_state
 
-flow_state = flow.run(executor=executor)
 
-out_list = flow_state.result[details_list].result
-out_df = flow_state.result[details_df].result
+if __name__ == '__main__':
+
+    flow_state = run_flow(symbols=['GLD', 'GOLD'])
+
+    # get checkpointed data
+    out_list = flow_state.result[details_list].result
+    out_df = flow_state.result[details_df].result

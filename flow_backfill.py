@@ -44,7 +44,7 @@ def get_flow():
     return flow
 
 
-def run_backfill(symbols: list, tick_type: str, start_date: str, end_date: str=(date.today() - timedelta(days=1)).isoformat(),
+def run_flow(symbols: list, tick_type: str, start_date: str, end_date: str=(date.today() - timedelta(days=1)).isoformat(),
     n_workers: int=4, threads_per_worker: int=8, processes: bool=False):
 
     flow = get_flow()
@@ -68,11 +68,8 @@ def run_backfill(symbols: list, tick_type: str, start_date: str, end_date: str=(
 
 if __name__ == '__main__':
 
-    flow_state = run_backfill(
+    flow_state = run_flow(
         symbols=['GLD', 'GOLD'], 
         tick_type='trades', 
         start_date='2020-01-01'
-        # symbols=['market'], 
-        # tick_type='daily', 
-        # start_date='2020-01-01'
         )

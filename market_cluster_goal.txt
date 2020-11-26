@@ -50,3 +50,8 @@ market ->
     detone (main 'market' component -save as cluster) -> (optional)
 	sparse_pca(k=10)
  
+ ## experiments
+test 'bi-clustering/subspace clustering' on several synthetic and read data-set
+1) checkerboard matrix (from sklean)
+2) modular factors (from corex)
+3) US equities daily prices

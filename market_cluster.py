@@ -44,12 +44,20 @@ def volitility_filter(df: pd.DataFrame, low_cut: float, high_cut: float) -> pd.D
     return df_filtered.reset_index(drop=True)
 
 
-def add_returns(df: pd.DataFrame) -> pd.DataFrame:
-    df.loc[:, 'close_diff'] = df['close'].diff()
-    df.loc[:, 'close_log_return'] = np.diff(np.log(df['close']))
-    df.loc[:, 'vwap_diff'] = df['vwap'].diff()
-    df.loc[:, 'vwap_log_return'] = np.diff(np.log(df['vwap']))
+def add_returns(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    df.loc[:, col+'_diff'] = df[col].diff()
+    df.loc[1:-1, col+'_log_return'] = np.diff(np.log(df[col]))
     return df
+
+
+def symbol_pivot(df: pd.DataFrame) -> pd.DataFrame:
+    # pivot symbols to columns
+    close_prices = df.pivot(columns='symbol', values='close')
+    # get returns from price ts
+    returns = close_prices.diff().drop(close_prices.index[0])  # drop NA first row
+    # get z-score of returns
+    zscore_returns = (returns - returns.mean()) / returns.std(ddof=0)
+    return close_prices, zscore_returns
 
 
 def market_cluster_workflow(start_date: str, end_date: str) -> pd.DataFrame:
@@ -66,5 +74,4 @@ def market_cluster_workflow(start_date: str, end_date: str) -> pd.DataFrame:
     df = add_range(df)
     df = volitility_filter(df, low_cut=0.005, high_cut=0.5)
     print((df.shape[0] - nrows_all) / nrows_all)
-    df = add_returns(df)
     return df

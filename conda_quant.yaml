@@ -74,10 +74,12 @@ dependencies:
 # https://github.com/gregversteeg/LinearSieve
 
 # https://github.com/ChongYou/subspace-clustering
+# https://github.com/frheault/python-spams
+
 # https://github.com/padilha/biclustlib
 # https://github.com/KronicDeth/biclustering
 # https://github.com/Biclustering/biclust
-# - SubCMedians  # https://pypi.org/project/SubCMedians/#description
+# https://pypi.org/project/SubCMedians
 
 # https://github.com/udellgroup/pyglrm
 

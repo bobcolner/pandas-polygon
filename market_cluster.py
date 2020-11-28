@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from corex_linearcorex import Corex
 from polygon_ds import get_dates_df
 
 
@@ -44,34 +45,46 @@ def volitility_filter(df: pd.DataFrame, low_cut: float, high_cut: float) -> pd.D
     return df_filtered.reset_index(drop=True)
 
 
-def add_returns(df: pd.DataFrame, col: str) -> pd.DataFrame:
-    df.loc[:, col+'_diff'] = df[col].diff()
-    df.loc[1:-1, col+'_log_return'] = np.diff(np.log(df[col]))
-    return df
-
-
-def symbol_pivot(df: pd.DataFrame) -> pd.DataFrame:
+def symbol_pivot(df: pd.DataFrame, col: str='close', output: str='returns') -> pd.DataFrame:
     # pivot symbols to columns
-    close_prices = df.pivot(columns='symbol', values='close')
-    # get returns from price ts
-    returns = close_prices.diff().drop(close_prices.index[0])  # drop NA first row
-    # get z-score of returns
-    zscore_returns = (returns - returns.mean()) / returns.std(ddof=0)
-    return close_prices, zscore_returns
+    close_prices = df.pivot(columns='symbol', values=col)
+    if output == 'identity':
+        return close_prices
+    elif output in ('returns', 'zscore'):
+        # get returns from price ts
+        returns = close_prices.diff().drop(close_prices.index[0])  # drop NA first row
+        if output == 'zscore':
+            returns = (returns - returns.mean()) / returns.std(ddof=0)
+
+        return returns
 
 
 def market_cluster_workflow(start_date: str, end_date: str) -> pd.DataFrame:
+    
     df = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
     nrows_all = df.shape[0]
     print(nrows_all)
-
+    
     df = all_dates_filer(df)
     print((df.shape[0] - nrows_all) / nrows_all)
-
+    
     df = liquidity_filter(df, abs_dollar_cut=500_000)
     print((df.shape[0] - nrows_all) / nrows_all)
-
+    
     df = add_range(df)
-    df = volitility_filter(df, low_cut=0.005, high_cut=0.5)
+    df = volitility_filter(df, low_cut=0.005, high_cut=0.2)
     print((df.shape[0] - nrows_all) / nrows_all)
+    
+    df = df.drop(columns=['date', 'high', 'low', 'open', 'midprice', 'range'])
+    df = df.set_index('date_time', drop=True)
+    
+    df = symbol_pivot(df, col='close', output='returns')
     return df
+
+
+def corex_fit(X: pd.DataFrame, n_hidden: int) -> tuple:
+    corex = Corex(n_hidden=n_hidden, gaussianize='outliers', verbose=True)
+    corex.fit(X)
+    sym_clust = pd.DataFrame(list(zip(X.columns, corex.clusters()))).rename(columns={0: 'symbol', 1: 'cluster'})
+    full_df = pd.merge(sym_clust, pd.Series(data=corex.tcs, name='tcs'), left_on='cluster', right_index=True)
+    return corex, full_df

@@ -79,6 +79,12 @@ def put_date_df_to_s3(df: pd.DataFrame, symbol: str, date: str, tick_type: str) 
         s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
 
+def put_df_to_s3(df: pd.DataFrame, tick_type: str, other: str) -> pd.DataFrame:
+    with NamedTemporaryFile(mode='w+b') as tmp_ref1:
+        df.to_feather(path=tmp_ref1.name, version=2)
+        s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/{other}/data.feather")
+
+
 def get_and_save_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
     print(symbol, date, 'getting data fron polygon api')
     df = get_date_df(symbol, date, tick_type)

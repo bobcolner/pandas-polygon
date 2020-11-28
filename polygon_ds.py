@@ -40,10 +40,12 @@ def get_local_dataset(tick_type: str, symbol: str=None) -> FileSystemDataset:
 
 
 def get_dates_df(tick_type: str, symbol: str, start_date: str, end_date: str, source: str='local') -> pd.DataFrame:
+    
     if source == 'local':
         ds = get_local_dataset(tick_type=tick_type, symbol=symbol)
     elif source == 's3':
         ds = get_s3_dataset(tick_type=tick_type, symbol=symbol)
+    
     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
-    df = ds.to_table(filter=filter_exp).to_pandas()
-    return df
+    return ds.to_table(filter=filter_exp).to_pandas()
+

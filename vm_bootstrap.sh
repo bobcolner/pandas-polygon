@@ -73,3 +73,14 @@ pip install --user .
 git clone https://github.com/ChongYou/subspace-clustering
 sudo apt install liblapack-dev libopenblas-dev
 pip install --index-url https://test.pypi.org/simple/ spams
+
+# via alpaca account
+export POLYGON_API_KEY="AKW7AP27P3ZWEYEP02BZ"
+export APCA_API_KEY_ID="AKW7AP27P3ZWEYEP02BZ"
+# backblaze b2 storage
+export B2_ACCESS_KEY_ID="000bc68c5651ba80000000002"  # applicationKeyId
+export B2_SECRET_ACCESS_KEY="K000vvC25zIkmygzd4DaI774sBRu4sU"  # applicationKey
+export B2_ENDPOINT_URL="https://s3.us-west-000.backblazeb2.com"
+# quant results path
+export LOCAL_PATH="/home/trinity/pandas-polygon/data"
+export S3_PATH="polygon-equities/data"

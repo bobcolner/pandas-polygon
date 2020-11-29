@@ -2,10 +2,7 @@ from os import environ
 import pandas as pd
 from pyarrow.dataset import dataset, field
 from pyarrow._dataset import FileSystemDataset
-
-
-LOCAL_PATH = environ['LOCAL_PATH']
-S3_PATH = environ['S3_PATH']
+from utils_globals import LOCAL_PATH, S3_PATH
 
 
 def get_s3_dataset(tick_type: str, symbol: str) -> FileSystemDataset:

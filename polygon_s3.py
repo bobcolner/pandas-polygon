@@ -3,11 +3,9 @@ from io import BytesIO
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import pandas as pd
+from utils_globals import LOCAL_PATH, S3_PATH
 from polygon_df import get_date_df
 
-
-LOCAL_PATH = environ['LOCAL_PATH']
-S3_PATH = environ['S3_PATH']
 
 
 def get_s3fs_client(cached: bool=False):

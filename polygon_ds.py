@@ -1,16 +1,15 @@
-from os import environ
 import pandas as pd
 from pyarrow.dataset import dataset, field
 from pyarrow._dataset import FileSystemDataset
-from utils_globals import LOCAL_PATH, S3_PATH
+from utils_globals import LOCAL_PATH, S3_PATH, B2_ACCESS_KEY_ID, B2_SECRET_ACCESS_KEY, B2_ENDPOINT_URL
 
 
 def get_s3_dataset(tick_type: str, symbol: str) -> FileSystemDataset:
     from pyarrow.fs import S3FileSystem
     s3  = S3FileSystem(
-        access_key=environ['B2_ACCESS_KEY_ID'],
-        secret_key=environ['B2_SECRET_ACCESS_KEY'],
-        endpoint_override=environ['B2_ENDPOINT_URL']
+        access_key=B2_ACCESS_KEY_ID,
+        secret_key=B2_SECRET_ACCESS_KEY,
+        endpoint_override=B2_ENDPOINT_URL
     )
     ds = dataset(
         source=S3_PATH + f"/{tick_type}/symbol={symbol}/",

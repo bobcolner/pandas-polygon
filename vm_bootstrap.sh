@@ -64,7 +64,6 @@ conda env create -f conda_quant.yaml
 # clea up conda files
 conda clean --all --yes
 
-
 # clone git repos
 git clone https://github.com/cudamat/cudamat
 cd cudamat

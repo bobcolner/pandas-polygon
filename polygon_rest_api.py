@@ -1,14 +1,10 @@
 from os import environ
 from numpy import isin
 from requests import get
+from utils_globals import POLYGON_API_KEY
 
 
 BASE_URL = 'https://api.polygon.io'
-
-if 'POLYGON_API_KEY' in environ:
-    API_KEY = environ['POLYGON_API_KEY']
-else:
-    raise ValueError('missing poloyon api key')
 
 
 def validate_response(response: str):
@@ -19,25 +15,25 @@ def validate_response(response: str):
 
 
 def get_market_date(date: str, locale: str='us', market: str='stocks') -> list:
-    url = BASE_URL + f"/v2/aggs/grouped/locale/{locale}/market/{market}/{date}?apiKey={API_KEY}"
+    url = BASE_URL + f"/v2/aggs/grouped/locale/{locale}/market/{market}/{date}?apiKey={POLYGON_API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
 def get_markets() -> list:
-    url = BASE_URL + f"/v2/reference/markets?apiKey={API_KEY}"
+    url = BASE_URL + f"/v2/reference/markets?apiKey={POLYGON_API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
 def get_locales() -> list:
-    url = BASE_URL + f"/v2/reference/locales?apiKey={API_KEY}"
+    url = BASE_URL + f"/v2/reference/locales?apiKey={POLYGON_API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
 def get_types() -> list:
-    url = BASE_URL + f"/v2/reference/types?apiKey={API_KEY}"
+    url = BASE_URL + f"/v2/reference/types?apiKey={POLYGON_API_KEY}"
     response = get(url)
     return validate_response(response)
 
@@ -45,7 +41,7 @@ def get_types() -> list:
 def get_tickers_page(page: int=1, stock_type: str='etp') -> list:
     path = BASE_URL + f"/v2/reference/tickers"
     params = {}
-    params['apiKey'] = API_KEY
+    params['apiKey'] = POLYGON_API_KEY
     params['page'] = page
     params['active'] = 'true'
     params['perpage'] = 50
@@ -78,14 +74,14 @@ def get_all_tickers(start_page: int=1, end_page: int=None, stock_type: str='etp'
 
 
 def get_ticker_details(symbol: str):
-    url = BASE_URL + f"/v1/meta/symbols/{symbol}/company?apiKey={API_KEY}"
+    url = BASE_URL + f"/v1/meta/symbols/{symbol}/company?apiKey={POLYGON_API_KEY}"
     response = get(url)
     if response.status_code == 200:
         return response.json()
 
 
 def get_market_status():
-    url = BASE_URL + f"/v1/marketstatus/now?apiKey={API_KEY}"
+    url = BASE_URL + f"/v1/marketstatus/now?apiKey={POLYGON_API_KEY}"
     response = get(url)
     return validate_response(response)
 
@@ -99,7 +95,7 @@ def get_stock_ticks_batch(symbol: str, date: str, tick_type: str, timestamp_firs
         path = BASE_URL + f"/v2/ticks/stocks/trades/{symbol}/{date}"
 
     params = {}
-    params['apiKey'] = API_KEY
+    params['apiKey'] = POLYGON_API_KEY
     if timestamp_first is not None:
         params['timestamp'] = timestamp_first
 

@@ -1,9 +1,8 @@
-from os import environ
 from io import BytesIO
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import pandas as pd
-from utils_globals import LOCAL_PATH, S3_PATH
+from utils_globals import LOCAL_PATH, S3_PATH, B2_ACCESS_KEY_ID, B2_SECRET_ACCESS_KEY, B2_ENDPOINT_URL
 from polygon_df import get_date_df
 
 
@@ -16,18 +15,18 @@ def get_s3fs_client(cached: bool=False):
             protocol='filecache',
             target_protocol='s3',
             target_options={
-                'key': environ['B2_ACCESS_KEY_ID'],
-                'secret': environ['B2_SECRET_ACCESS_KEY'],
-                'client_kwargs': {'endpoint_url': environ['B2_ENDPOINT_URL']}
+                'key': B2_ACCESS_KEY_ID,
+                'secret': B2_SECRET_ACCESS_KEY,
+                'client_kwargs': {'endpoint_url': B2_ENDPOINT_URL}
                 },
             # cache_storage='/Users/bobcolner/QuantClarity/pandas-polygon/data/cache'
             )
     else:
         from s3fs import S3FileSystem
         s3fs = S3FileSystem(
-                key=environ['B2_ACCESS_KEY_ID'], 
-                secret=environ['B2_SECRET_ACCESS_KEY'], 
-                client_kwargs={'endpoint_url': environ['B2_ENDPOINT_URL']}
+                key=B2_ACCESS_KEY_ID, 
+                secret=B2_SECRET_ACCESS_KEY, 
+                client_kwargs={'endpoint_url': B2_ENDPOINT_URL}
             )
     return s3fs
 

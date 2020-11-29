@@ -4,12 +4,7 @@ from json import loads
 import pandas as pd
 from trio import run
 from trio_websocket import open_websocket_url
-
-
-if 'POLYGON_API_KEY' in environ:
-    API_KEY = environ['POLYGON_API_KEY']
-else:
-    raise ValueError('missing poloyon api key')
+from utils_globals import POLYGON_API_KEY
 
 
 def run_stream_ticks(tickers: str='T.SPY, Q.SPY', file_name: str='data.txt'):
@@ -21,7 +16,7 @@ async def stream_ticks(tickers: str, output_fname: str, print_msg: bool=False):
     # connect to ws
     async with open_websocket_url('wss://alpaca.socket.polygon.io/stocks') as ws:
         # authenticate
-        await ws.send_message('{"action":"auth", "params":"' + API_KEY + '"}')
+        await ws.send_message('{"action":"auth", "params":"' + POLYGON_API_KEY + '"}')
         # subscribe to symbols
         await ws.send_message(f'{{"action": "subscribe", "params": "{tickers}"}}')
         # listen for events

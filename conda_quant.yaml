@@ -28,6 +28,7 @@ dependencies:
   # - modin
   # - swifter
   # - psutil
+  - joblib
   - cachey
   - tenacity
   - prefect[viz, gcp, aws]
@@ -63,10 +64,10 @@ dependencies:
     # - skranger
     # - ppscore
     # - persist-queue[extra]
+    # - diskcache
     # - dcor
 
 # https://github.com/gregversteeg/gaussianize
-
 # https://github.com/gregversteeg/LinearCorex
 # https://github.com/gregversteeg/bio_corex
 # https://github.com/gregversteeg/corex_topic
@@ -74,8 +75,6 @@ dependencies:
 # https://github.com/gregversteeg/LinearSieve
 
 # https://github.com/ChongYou/subspace-clustering
-# https://github.com/frheault/python-spams
-
 # https://github.com/padilha/biclustlib
 # https://github.com/KronicDeth/biclustering
 # https://github.com/Biclustering/biclust

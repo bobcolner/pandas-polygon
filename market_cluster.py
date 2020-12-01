@@ -1,86 +1,6 @@
 from datetime import datetime
-import numpy as np
 import pandas as pd
 from corex_linearcorex import Corex
-from polygon_ds import get_dates_df
-
-
-def plot_daily_symbols(df: pd.DataFrame, symbols: list=['SPY', 'QQQ'], metric: str='close') -> pd.DataFrame:
-    fdf = df[['symbol', metric]][df.symbol.isin(symbols)]
-    pdf = fdf.pivot(columns='symbol', values=metric)
-    pdf.plot_bokeh(kind='line', sizing_mode="scale_height", rangetool=True, title=str(symbols), ylabel=metric+' [$]', number_format="1.00 $")
-    return pdf
-
-
-def all_dates_filer(df: pd.DataFrame) -> pd.DataFrame:
-    sym_count = df.groupby('symbol').count()[['open']]
-    active_days = max(df.symbol.value_counts())
-    passed_sym = sym_count.loc[sym_count['open'] >= active_days].index
-    df_filtered = df.loc[df.symbol.isin(passed_sym)].reset_index(drop=True)
-    return df_filtered
-
-
-def liquidity_filter(df: pd.DataFrame, abs_dollar_cut: float, quantile_dollar_cut: float=None) -> pd.DataFrame:
-    sym_dollar_avg = df.groupby('symbol')[['dollar_total']].mean()
-    if quantile_dollar_cut:
-        min_dollar = df['dollar_total'].quantile(q=qcut)
-    else:
-        min_dollar = abs_dollar_cut
-    passed_sym = sym_dollar_avg.loc[sym_dollar_avg['dollar_total'] > min_dollar].index
-    df_filtered = df.loc[df.symbol.isin(passed_sym)]
-    return df_filtered.reset_index(drop=True)
-
-
-def add_range(df: pd.DataFrame) -> pd.DataFrame:
-    daily_range = df['high'] - df['low']
-    df.loc[:, 'range'] = daily_range
-    range_value_pct = daily_range / df['vwap']
-    df.loc[:, 'range_value_pct'] = range_value_pct
-    return df
-
-
-def volitility_filter(df: pd.DataFrame, low_cut: float, high_cut: float) -> pd.DataFrame:
-    sym_pct_range_med = df.groupby('symbol')[['range_value_pct']].median()
-    passed_sym = sym_pct_range_med.loc[sym_pct_range_med['range_value_pct'].between(low_cut, high_cut)].index
-    df_filtered = df.loc[df.symbol.isin(passed_sym)]
-    return df_filtered.reset_index(drop=True)
-
-
-def symbol_pivot(df: pd.DataFrame, col: str='close', output: str='returns') -> pd.DataFrame:
-    # pivot symbols to columns
-    close_prices = df.pivot(columns='symbol', values=col)
-    if output == 'identity':
-        return close_prices
-    elif output in ('returns', 'zscore'):
-        # get returns from price ts
-        returns = close_prices.diff().drop(close_prices.index[0])  # drop NA first row
-        if output == 'zscore':
-            returns = (returns - returns.mean()) / returns.std(ddof=0)
-
-        return returns
-
-
-def market_cluster_workflow(start_date: str, end_date: str) -> pd.DataFrame:
-    
-    df = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
-    nrows_all = df.shape[0]
-    print(nrows_all)
-    
-    df = all_dates_filer(df)
-    print((df.shape[0] - nrows_all) / nrows_all)
-    
-    df = liquidity_filter(df, abs_dollar_cut=500_000)
-    print((df.shape[0] - nrows_all) / nrows_all)
-    
-    df = add_range(df)
-    df = volitility_filter(df, low_cut=0.005, high_cut=0.2)
-    print((df.shape[0] - nrows_all) / nrows_all)
-    
-    df = df.drop(columns=['date', 'high', 'low', 'open', 'midprice', 'range'])
-    df = df.set_index('date_time', drop=True)
-    
-    df = symbol_pivot(df, col='close', output='returns')
-    return df
 
 
 def corex_fit(X: pd.DataFrame, n_hidden: int) -> tuple:
@@ -94,21 +14,26 @@ def corex_fit(X: pd.DataFrame, n_hidden: int) -> tuple:
     return corex, full_df
 
 
-def corex_results(fit_corex: Corex, full_df: pd.DataFrame):
-
+def corex_results(fit_corex: Corex):
+    # number of latent factors fit
     n_latent_factors = len(pd.Series(fit_corex.clusters()).unique())
-
+    # total correlation explained
     total_cor = fit_corex.tc
-    
+    # cluster size distrabution
+    cluster_size_dist = fit_corex.cluster.value_counts().describe()
+    # median pairwise correlation between latent factors/clusters
     median_pairwise_corr = pd.DataFrame(fit_corex.transform(X)).corr().median().median()
-
+    # factor/cluser TC distrabution
     cluster_tcs_dist = pd.Series(fit_corex.tcs).describe(percentiles=[.25,.75,.9,.99,.999])
-
+    # factor/cluster ranking by TC
     pct_cluseter_tcs = pd.Series(fit_corex.tcs / sum(fit_corex.tcs))
     # pct_cluseter_tcs = pd.Series(fit_corex.tcs / fit_corex.tc)  # alt
-    pct_cluseter_tcs[0:20]  # show top 20
 
+
+def full_df_results(full_df: pd.DataFrame):
+    
     tops_clust = full_df[full_df.symbol=='TOPS'].cluster.values[0]  # get cluster for 'TOPS'
     other_clust_symbols = full_df.loc[full_df.cluster == tops_clust]
 
     symbols_from_top_factor = full_df.sort_values(['tcs', 'symbol'], ascending=False)[0:20]
+

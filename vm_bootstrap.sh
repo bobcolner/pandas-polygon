@@ -83,3 +83,9 @@ export B2_ENDPOINT_URL="https://s3.us-west-000.backblazeb2.com"
 # quant results path
 export LOCAL_PATH="/home/trinity/pandas-polygon/data"
 export S3_PATH="polygon-equities/data"
+
+# copy data from ai notebook to GCS
+gsutil copy gs://emerald-skill-datascience/corex300.pkl /Users/bobcolner/QuantClarity/pandas-polygon
+
+# copy data from macbook to GCS
+gsutil copy /Users/bobcolner/QuantClarity/pandas-polygon gs://emerald-skill-datascience/

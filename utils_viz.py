@@ -1,6 +1,14 @@
 import finplot as fplt
 import pandas as pd
 
+
+def plot_daily_symbols(df: pd.DataFrame, symbols: list, metric: str='close') -> pd.DataFrame:
+    fdf = df[['symbol', metric]][df.symbol.isin(symbols)]
+    pdf = fdf.pivot(columns='symbol', values=metric)
+    pdf.plot_bokeh(kind='line', sizing_mode="scale_height", rangetool=True, title=str(symbols), ylabel=metric+' [$]', number_format="1.00 $")
+    return pdf
+
+
 bars_df = pd.read_feather('bars.feather')
 bars_df = bars_df.set_index('close_at')
 

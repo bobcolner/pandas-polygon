@@ -6,7 +6,6 @@ from utils_globals import LOCAL_PATH, S3_PATH, B2_ACCESS_KEY_ID, B2_SECRET_ACCES
 from polygon_df import get_date_df
 
 
-
 def get_s3fs_client(cached: bool=False):
     if cached:
         from fsspec import filesystem
@@ -76,10 +75,14 @@ def put_date_df_to_s3(df: pd.DataFrame, symbol: str, date: str, tick_type: str) 
         s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
 
-def put_df_to_s3(df: pd.DataFrame, tick_type: str, other: str) -> pd.DataFrame:
+def put_df_to_s3(df: pd.DataFrame, s3_file_path: str) -> pd.DataFrame:
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
-        s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/{other}/data.feather")
+        s3fs.put(tmp_ref1.name, S3_PATH + f"/{s3_file_path}/data.feather")
+
+
+def put_file(file_path: str, file_name: str, s3_file_path: str):
+    s3fs.put(file_path + file_path, S3_PATH + f"/{s3_file_path}/" + file_name)
 
 
 def get_and_save_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:

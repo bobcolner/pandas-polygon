@@ -4,6 +4,7 @@ from polygon_rest_api import get_ticker_details
 
 @ray.remote
 def get_symbol_details_ray(symbol: str) -> dict:
+    print(symbol)
     return get_ticker_details(symbol)
 
 

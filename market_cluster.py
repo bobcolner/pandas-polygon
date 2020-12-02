@@ -28,6 +28,7 @@ def corex_results(fit_corex: Corex):
     # factor/cluster ranking by TC
     pct_cluseter_tcs = pd.Series(fit_corex.tcs / sum(fit_corex.tcs))
     # pct_cluseter_tcs = pd.Series(fit_corex.tcs / fit_corex.tc)  # alt
+    pd.DataFrame(fit_corex.tcs).describe(percentiles=[.7,.8,.9,.99])
 
 
 def full_df_results(full_df: pd.DataFrame):
@@ -36,4 +37,3 @@ def full_df_results(full_df: pd.DataFrame):
     other_clust_symbols = full_df.loc[full_df.cluster == tops_clust]
 
     symbols_from_top_factor = full_df.sort_values(['tcs', 'symbol'], ascending=False)[0:20]
-

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from polygon_ds import get_dates_df
+from polygon_df import get_symbol_details_df
 
 
 def all_dates_filer(df: pd.DataFrame) -> pd.DataFrame:
@@ -44,6 +45,11 @@ def min_value_filter(df: pd.DataFrame, min_dollar_value: float) -> pd.DataFrame:
     return df_filtered.reset_index(drop=True)
 
 
+def symbol_filter(df: pd.DataFrame, symbols: list):
+    df_filtered = df.loc[df.symbol.isin(symbols), :]
+    return df_filtered.reset_index(drop=True)
+
+
 def outlier_squeeze(x, t: int=4):
     """A transformation that suppresses outliers for a standard normal."""
     xp = np.clip(x, -t, t)
@@ -73,19 +79,24 @@ def prepare_data(start_date: str, end_date: str) -> pd.DataFrame:
     df = min_value_filter(df, min_dollar_value=1.0)
     nrows_4 = df.shape[0]
     print((nrows_4 - nrows_3), 'min $value filter')
+
+    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'sector', 'industry', 'tags', 'similar', 'type'])
+    sym_labels = sym_details[(sym_details.sector!='') & (sym_details.type.str.upper()=='CS')].reset_index(drop=True)
+    df = symbol_filter(df, symbols=sym_labels.symbol)
+    nrows_5 = df.shape[0]
+    print((nrows_5 - nrows_4), 'symbol details filter')
     
-    df = df.drop(columns=['date', 'midprice', 'range', 'dollar_total', 'range_value_pct'])
+    # df = df.drop(columns=['date', 'midprice', 'range', 'dollar_total', 'range_value_pct'])
+    df = df.drop(columns=['date', 'midprice', 'range'])
     df = df.set_index('date_time', drop=True)
     print(df.shape[0], 'Final rows', round(df.shape[0] / nrows_all, 3)*100, '% remaining')
+    print(len(df.symbol.uniquie()), 'symbols included')
     
-    # pivot df wide by symbol price
+    # pivot df 'wide' by symbol
     m_close = df.pivot(columns='symbol', values='close')
-    # take returns
-    m_returns = m_close.diff().dropna()  # drop NA first row
-    m_log_returns = pd.DataFrame(np.log(m_close)).diff().dropna() # log returns
-    # zscore returns
-    m_zs_returns = (m_log_returns - m_log_returns.mean()) / m_log_returns.std(ddof=0)
-    # reduce outliners
-    m_g_zs_returns = outlier_squeeze(m_zs_returns)
+    m_returns = m_close.diff().dropna()  # returns
+    m_log_returns = pd.DataFrame(np.log(m_close)).diff().dropna() # log
+    m_zs_returns = (m_log_returns - m_log_returns.mean()) / m_log_returns.std(ddof=0)  # z-score
+    m_g_zs_returns = outlier_squeeze(m_zs_returns, t=4) # reduce outliners
 
-    return df, m_close, m_returns, m_log_returns, m_zs_returns, m_g_zs_returns
+    return df, sym_labels, m_close, m_returns, m_log_returns, m_zs_returns, m_g_zs_returns

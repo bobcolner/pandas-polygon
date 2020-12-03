@@ -1,6 +1,14 @@
 from datetime import datetime
 import pandas as pd
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score
 from corex_linearcorex import Corex
+
+
+def evaluate_clustering(labels_true: list, labels_pred: list) -> dict:
+    ari = adjusted_rand_score(labels_true, labels_pred)
+    ami = adjusted_mutual_info_score(labels_true, labels_pred)
+    return {'ari': ari, 'ami': ami}
 
 
 def corex_fit(X: pd.DataFrame, n_hidden: int) -> tuple:
@@ -37,3 +45,22 @@ def full_df_results(full_df: pd.DataFrame):
     other_clust_symbols = full_df.loc[full_df.cluster == tops_clust]
 
     symbols_from_top_factor = full_df.sort_values(['tcs', 'symbol'], ascending=False)[0:20]
+
+
+def fit_hclust_model(similarity: pd.DataFrame, n_clusters: int) -> tuple:
+    # from sklearn.neighbors import kneighbors_graph
+    #  connectivity = kneighbors_graph(par_cor_mat, n_neighbors=5, include_self=False)
+    hclust_model = AgglomerativeClustering(
+        n_clusters=n_clusters,
+        affinity='euclidean',  # "euclidean", "l1", "l2", "manhattan", "cosine", or "precomputed". If linkage is "ward", only "euclidean" is accepted
+        memory=None,
+        connectivity=None,
+        compute_full_tree=True,
+        linkage='ward',  # “complete”, “average”, “single”}, default=”ward”
+        distance_threshold=None,
+    ).fit(similarity)
+    cluster_labels = pd.DataFrame({'symbol': similarity.columns, f"cluster_n{n_clusters}": hclust_model.labels_})
+    return hclust_model, cluster_labels
+
+
+# def fit_kmeans():

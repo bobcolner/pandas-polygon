@@ -24,11 +24,11 @@ def linreg_residuals(x: pd.Series, y: pd.Series, summary: bool=False) -> tuple:
     return df
 
 
-def colwise_linreg(df: pd.DataFrame, beta_symbol: str) -> pd.DataFrame:
+def colwise_linreg_residuals(df: pd.DataFrame, beta_series: pd.Series) -> pd.DataFrame:
     results = []
     for col in tqdm(df.columns):
         # 'regress out' market 'beta' and return residuals
-        linreg_df = linreg_residuals(x=df[beta_symbol], y=df[col])
+        linreg_df = linreg_residuals(x=beta_series, y=df[col])
         results.append(linreg_df['residual'])
     # convert list of pd.Series to df
     resid_df = pd.DataFrame(results).transpose()

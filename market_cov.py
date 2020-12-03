@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from mlfinlab_risk_estimators import RiskEstimators
+from mlfinlab.portfolio_optimization.estimators.risk_estimators import RiskEstimators
+from mlfinlab.codependence import get_distance_matrix
 
 
 risk_estimators = RiskEstimators()
@@ -59,12 +60,13 @@ def denoise_cov(cov_mat: pd.DataFrame, method: str, rows_per_col: float, detone:
     return denoised_cov, denoised_cor
 
 
-def cov_denoise_detone(data: pd.DataFrame) -> tuple:
+def cov_denoise_detone(data: pd.DataFrame, detone: bool) -> tuple:
     cov_mat, cor_mat = get_cov(data, method='shrinked_oas', price_data=False)
-    dcov_mat, dcor_mat = denoise_cov(
+    dncov_mat, dncor_mat = denoise_cov(
         cov_mat=cov_mat,
         method='const_resid_eigen',
         rows_per_col=data.shape[0] / data.shape[1],
-        detone=True
+        detone=detone,
         )
-    return dcov_mat, dcor_mat
+    dist_mat = get_distance_matrix(X=dncor_mat, distance_metric='abs_angular')
+    return dist_mat

@@ -45,8 +45,11 @@ def min_value_filter(df: pd.DataFrame, min_dollar_value: float) -> pd.DataFrame:
     return df_filtered.reset_index(drop=True)
 
 
-def symbol_filter(df: pd.DataFrame, symbols: list):
-    df_filtered = df.loc[df.symbol.isin(symbols), :]
+def symbol_details_filter(df: pd.DataFrame) -> pd.DataFrame:
+    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
+    mask = (sym_details.sector!='') & (sym_details.type.str.upper()=='CS')
+    sym_details = sym_details[mask].set_index('symbol')
+    df_filtered = df.loc[df.symbol.isin(sym_details.index), :]
     return df_filtered.reset_index(drop=True)
 
 
@@ -57,48 +60,64 @@ def outlier_squeeze(x, t: int=4):
     return xp + diff
 
 
-def prepare_data(start_date: str, end_date: str) -> pd.DataFrame:
-    
-    df = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
+def filter_market(df):
     nrows_all = df.shape[0]
     print(nrows_all, 'Initial rows', len(df.symbol.unique()), 'symbols')
-    
     df = all_dates_filer(df)
     nrows_1 = df.shape[0]
     print((nrows_1 - nrows_all), 'all dates filter', len(df.symbol.unique()), 'symbols')
-     
     df = liquidity_filter(df, abs_dollar_cut=500_000)
     nrows_2 = df.shape[0]
     print((nrows_2 - nrows_1), 'liquidity filter', len(df.symbol.unique()), 'symbols')
-    
-    df = add_range(df)
     df = range_value_filter(df, low_cut=0.005, high_cut=0.5)
     nrows_3 = df.shape[0]
     print((nrows_3 - nrows_2), 'volitility filter', len(df.symbol.unique()), 'symbols')
-
     df = min_value_filter(df, min_dollar_value=1.0)
     nrows_4 = df.shape[0]
     print((nrows_4 - nrows_3), 'min $value filter', len(df.symbol.unique()), 'symbols')
-
-    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
-    sym_details = sym_details[(sym_details.sector!='') & (sym_details.type.str.upper()=='CS')].set_index('symbol')
-    df = symbol_filter(df, symbols=sym_details.index)
+    df = symbol_details_filter(df)
     nrows_5 = df.shape[0]
     print((nrows_5 - nrows_4), 'symbol details filter', len(df.symbol.unique()), 'symbols')
+    print(df.shape[0], 'Final rows', round(df.shape[0] / nrows_all, 3)*100, '% remaining')
+    return df
 
+
+def merge_symbol_stats(df):
     sym_stats = df.groupby('symbol')[['range_value_pct', 'dollar_total']].median()
+    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
     sym_meta = sym_details.join(other=sym_stats, how='right')
     # sym_meta.pivot_table(index='industry', columns='sector', values='dollar_total', aggfunc=len)
-    
-    df = df.drop(columns=['date', 'midprice', 'range'])
-    df = df.set_index('date_time', drop=True)
-    print(df.shape[0], 'Final rows', round(df.shape[0] / nrows_all, 3)*100, '% remaining')
-    
-    # pivot df 'wide' by symbol
-    m_close = df.pivot(columns='symbol', values='close')
-    m_returns = m_close.diff().dropna()  # returns
-    m_log_returns = pd.DataFrame(np.log(m_close)).diff().dropna() # log
-    m_zs_returns = (m_log_returns - m_log_returns.mean()) / m_log_returns.std(ddof=0)  # z-score
-    m_g_zs_returns = outlier_squeeze(m_zs_returns, t=4) # reduce outliners
+    return sym_meta
 
-    return df, sym_meta, m_close, m_returns, m_log_returns, m_zs_returns, m_g_zs_returns
+
+def transform_prices(df: pd.DataFrame) -> tuple:
+    df = df.set_index('date_time', drop=True)
+    r = {}
+    r['close'] = df.pivot(columns='symbol', values='close')
+    r['returns'] = r['close'].diff().dropna()  # returns
+    r['log_returns'] = pd.DataFrame(np.log(r['close'])).diff().dropna() # log
+    r['zs_log_returns'] = (r['log_returns'] - r['log_returns'].mean()) / r['log_returns'].std(ddof=0)  # z-score
+    r['g_zs_log_returns'] = outlier_squeeze(r['zs_log_returns'], t=4) # reduce outliners
+    return r
+
+
+def prepare_data(start_date: str, end_date: str, beta_symbol: str=None) -> dict:
+    
+    df_all = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
+    df_all = add_range(df_all)
+    df = filter_market(df_all)
+    sym_meta = merge_symbol_stats(df)
+    pivot_results = transform_prices(df)
+    # results dict
+    r = {}
+    r['df'] = df.drop(columns=['date', 'midprice', 'range'])
+    r['sym_meta'] = sym_meta
+    r.update(pivot_results)
+    if beta_symbol:
+        beta_results = transform_prices(df_all[df_all.symbol == beta_symbol])
+        g_zs_log_returns_resid = colwise_linreg_residuals(
+            df=pivot_results['g_zs_log_returns'],
+            beta_series=beta_results['g_zs_log_returns'][beta_symbol]
+            )
+        r['g_zs_log_returns_resid'] = g_zs_log_returns_resid
+    return r

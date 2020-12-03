@@ -11,20 +11,21 @@ dependencies:
   - numpy
   - scipy
   - scikit-learn
+  - category_encoders
   - statsmodels
-  # - category_encoders
-  # - fastcluster
-  # - pyclustering
   # - pingouin
+  # - fastcluster
+  - pyclustering  
   - pyarrow>=2.0
   - pandas>=1.1
   - pandas_market_calendars
   - ipython
   - ipdb
-  - filprofiler
+  # - filprofiler
   - jupyterlab  # qgrid2, @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @mamba-org/gator-lab, @jupyterlab/shortcutui
   # jupyterlab-tailwind-theme, jupyterlab-neon-theme, base16-mexico-light, @arbennett/base16-gruvbox-light, @arbennett/base16-solarized-light, jupyterlab-theme-solarized-dark, jupyterlab_onedark, @arbennett/base16-one-dark, @arbennett/base16-monokai, @yeebc/jupyterlab_neon_theme, @arbennett/base16-nord, jupyterlab-custom-theme, @nimbous/jupyterlab-calm-theme, @fredericosantos/jupyterlab-fsx-monokai-theme, @arbennett/base16-solarized-dark, @arbennett/base16-gruvbox-dark
   - mamba_gator
+  - jupyterlab-git
   - nbdime
   - pandas-profiling
   - dask
@@ -33,7 +34,6 @@ dependencies:
   # - swifter
   # - psutil
   - joblib
-  - cachey
   - tenacity
   - prefect[viz, gcp, aws]
   - boto3
@@ -68,7 +68,6 @@ dependencies:
     # - skranger
     # - ppscore
     # - persist-queue[extra]
-    # - diskcache
     # - dcor
 
 # https://github.com/gregversteeg/gaussianize

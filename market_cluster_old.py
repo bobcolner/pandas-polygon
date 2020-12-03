@@ -111,7 +111,7 @@ def colwise_partial_distcorr(df, col1:str, partial:str):
     return result_df
 
 
-def plot_pca(X:pd.DataFrame, n_components:int):
+def plot_pca(X: pd.DataFrame, n_components: int):
     from sklearn.decomposition import PCA
     pca = PCA(n_components)
     X_r = pca.fit(X).transform(X)

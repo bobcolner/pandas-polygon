@@ -121,17 +121,11 @@ def get_date_df(symbol: str, date: str, tick_type: str) -> pd.DataFrame:
 
 
 def get_symbol_details_df(symbols: list) -> pd.DataFrame:
-    from tenacity import retry, stop_after_attempt, wait_exponential
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def robust_get_ticker_details(symbol: str):
-        return get_ticker_details(symbol)
-
     results = []
     for symbol in symbols:
         print(symbol)
-        dets = robust_get_ticker_details(symbol)
+        dets = get_ticker_details(symbol)
         if dets:
             results.append(dets)
-    # results = [i for i in results if i]  # remove empty/null items from list
+    results = [i for i in results if i]  # remove empty/null items from list
     return pd.DataFrame(results)

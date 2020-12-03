@@ -61,36 +61,38 @@ def prepare_data(start_date: str, end_date: str) -> pd.DataFrame:
     
     df = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
     nrows_all = df.shape[0]
-    print(nrows_all, 'Initial rows')
+    print(nrows_all, 'Initial rows', len(df.symbol.unique()), 'symbols')
     
     df = all_dates_filer(df)
     nrows_1 = df.shape[0]
-    print((nrows_1 - nrows_all), 'all dates filter')
+    print((nrows_1 - nrows_all), 'all dates filter', len(df.symbol.unique()), 'symbols')
      
     df = liquidity_filter(df, abs_dollar_cut=500_000)
     nrows_2 = df.shape[0]
-    print((nrows_2 - nrows_1), 'liquidity filter')
+    print((nrows_2 - nrows_1), 'liquidity filter', len(df.symbol.unique()), 'symbols')
     
     df = add_range(df)
     df = range_value_filter(df, low_cut=0.005, high_cut=0.5)
     nrows_3 = df.shape[0]
-    print((nrows_3 - nrows_2), 'volitility filter')
+    print((nrows_3 - nrows_2), 'volitility filter', len(df.symbol.unique()), 'symbols')
 
     df = min_value_filter(df, min_dollar_value=1.0)
     nrows_4 = df.shape[0]
-    print((nrows_4 - nrows_3), 'min $value filter')
+    print((nrows_4 - nrows_3), 'min $value filter', len(df.symbol.unique()), 'symbols')
 
-    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'sector', 'industry', 'tags', 'similar', 'type'])
-    sym_labels = sym_details[(sym_details.sector!='') & (sym_details.type.str.upper()=='CS')].reset_index(drop=True)
-    df = symbol_filter(df, symbols=sym_labels.symbol)
+    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
+    sym_details = sym_details[(sym_details.sector!='') & (sym_details.type.str.upper()=='CS')].set_index('symbol')
+    df = symbol_filter(df, symbols=sym_details.index)
     nrows_5 = df.shape[0]
-    print((nrows_5 - nrows_4), 'symbol details filter')
+    print((nrows_5 - nrows_4), 'symbol details filter', len(df.symbol.unique()), 'symbols')
+
+    sym_stats = df.groupby('symbol')[['range_value_pct', 'dollar_total']].median()
+    sym_meta = sym_details.join(other=sym_stats, how='right')
+    # sym_meta.pivot_table(index='industry', columns='sector', values='dollar_total', aggfunc=len)
     
-    # df = df.drop(columns=['date', 'midprice', 'range', 'dollar_total', 'range_value_pct'])
     df = df.drop(columns=['date', 'midprice', 'range'])
     df = df.set_index('date_time', drop=True)
     print(df.shape[0], 'Final rows', round(df.shape[0] / nrows_all, 3)*100, '% remaining')
-    print(len(df.symbol.uniquie()), 'symbols included')
     
     # pivot df 'wide' by symbol
     m_close = df.pivot(columns='symbol', values='close')
@@ -99,4 +101,4 @@ def prepare_data(start_date: str, end_date: str) -> pd.DataFrame:
     m_zs_returns = (m_log_returns - m_log_returns.mean()) / m_log_returns.std(ddof=0)  # z-score
     m_g_zs_returns = outlier_squeeze(m_zs_returns, t=4) # reduce outliners
 
-    return df, sym_labels, m_close, m_returns, m_log_returns, m_zs_returns, m_g_zs_returns
+    return df, sym_meta, m_close, m_returns, m_log_returns, m_zs_returns, m_g_zs_returns

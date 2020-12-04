@@ -17,6 +17,11 @@ except:
     POLYGON_API_KEY = 'seceret'
 
 try:
+    ALPHAVANTAGE_API_KEY = environ['ALPHAVANTAGE_API_KEY']
+except:
+    ALPHAVANTAGE_API_KEY = 'seceret'
+
+try:
     B2_ACCESS_KEY_ID = environ['B2_ACCESS_KEY_ID']
 except:
     B2_ACCESS_KEY_ID = 'seceret'

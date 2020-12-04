@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from polygon_ds import get_dates_df
 from polygon_df import get_symbol_details_df
+from market_partial_cor import colwise_linreg_residuals
 
 
 def all_dates_filer(df: pd.DataFrame) -> pd.DataFrame:
@@ -46,7 +47,10 @@ def min_value_filter(df: pd.DataFrame, min_dollar_value: float) -> pd.DataFrame:
 
 
 def symbol_details_filter(df: pd.DataFrame) -> pd.DataFrame:
-    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
+    sym_details = pd.read_feather(
+        path='data/sym_details.feather', 
+        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
+        )
     mask = (sym_details.sector!='') & (sym_details.type.str.upper()=='CS')
     sym_details = sym_details[mask].set_index('symbol')
     df_filtered = df.loc[df.symbol.isin(sym_details.index), :]
@@ -84,7 +88,10 @@ def filter_market(df):
 
 def merge_symbol_stats(df):
     sym_stats = df.groupby('symbol')[['range_value_pct', 'dollar_total']].median()
-    sym_details = pd.read_feather('data/sym_details.feather', columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic'])
+    sym_details = pd.read_feather(
+        path='data/sym_details.feather',
+        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
+    ).set_index('symbol')
     sym_meta = sym_details.join(other=sym_stats, how='right')
     # sym_meta.pivot_table(index='industry', columns='sector', values='dollar_total', aggfunc=len)
     return sym_meta
@@ -102,7 +109,6 @@ def transform_prices(df: pd.DataFrame) -> tuple:
 
 
 def prepare_data(start_date: str, end_date: str, beta_symbol: str=None) -> dict:
-    
     df_all = get_dates_df(tick_type='daily', symbol='market', start_date=start_date, end_date=end_date)
     df_all = add_range(df_all)
     df = filter_market(df_all)

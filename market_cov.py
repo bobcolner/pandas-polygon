@@ -51,7 +51,7 @@ def denoise_cov(cov_mat: pd.DataFrame, method: str, rows_per_col: float, detone:
             denoise_method='const_resid_eigen', detone=detone, market_component=n_comp, kde_bwidth=kbw)
     elif method == 'filter_corr_hierarchical':
         # Finding the Hierarchical Clustering Filtered Correlation matrix
-        denoised_cov = risk_estimators.filter_corr_hierarchical(cov_mat, 
+        denoised_cov = risk_estimators.filter_corr_hierarchical(cov_mat,
             method='complete', draw_plot=False)
 
     denoised_cov = pd.DataFrame(denoised_cov)
@@ -60,13 +60,20 @@ def denoise_cov(cov_mat: pd.DataFrame, method: str, rows_per_col: float, detone:
     return denoised_cov, denoised_cor
 
 
-def cov_denoise_detone(data: pd.DataFrame, detone: bool) -> tuple:
-    cov_mat, cor_mat = get_cov(data, method='shrinked_oas', price_data=False)
+def cov_denoise_detone_dist(data: pd.DataFrame, detone: bool) -> tuple:
+    cov_mat, cor_mat = get_cov(
+        data=data,
+        method='shrinked_oas', 
+        price_data=False
+        )
     dncov_mat, dncor_mat = denoise_cov(
         cov_mat=cov_mat,
         method='const_resid_eigen',
         rows_per_col=data.shape[0] / data.shape[1],
         detone=detone,
         )
-    dist_mat = get_distance_matrix(X=dncor_mat, distance_metric='abs_angular')
+    dist_mat = get_distance_matrix(
+        X=dncor_mat, 
+        distance_metric='abs_angular'
+        )
     return dist_mat

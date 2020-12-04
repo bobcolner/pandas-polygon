@@ -1,4 +1,3 @@
-from os import environ
 from numpy import isin
 from requests import get
 from utils_globals import POLYGON_API_KEY

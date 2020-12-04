@@ -14,7 +14,7 @@ def get_cov(data: pd.DataFrame, method: str, price_data: bool) -> tuple:
     elif method == 'mcd':
         cov_mat = risk_estimators.minimum_covariance_determinant(data, price_data)
     elif method == 'shrinked_basic':
-        cov_mat = risk_estimators.shrinked_covariance(data, price_data, shrinkage_type='basic', basic_shrinkage=0.1)
+        cov_mat = risk_estimators.shrinked_covariance(data, price_data, shrinkage_type='basic')
     elif method == 'shrinked_lw':  # Ledoit-Wolf
         cov_mat = risk_estimators.shrinked_covariance(data, price_data, shrinkage_type='lw')
     elif method == 'shrinked_oas':  # Oracle Approximating Shrinkage
@@ -24,8 +24,9 @@ def get_cov(data: pd.DataFrame, method: str, price_data: bool) -> tuple:
     elif method == 'exponential':
         cov_mat = risk_estimators.exponential_covariance(data, price_data, window_span=60)
     
-    cov_mat = pd.DataFrame(cov_mat)
+    cov_mat = pd.DataFrame(cov_mat).set_index(data.columns)
     cov_mat.columns = data.columns
+
     cor_mat = risk_estimators.cov_to_corr(cov_mat)
     return cov_mat, cor_mat
 
@@ -54,7 +55,7 @@ def denoise_cov(cov_mat: pd.DataFrame, method: str, rows_per_col: float, detone:
         denoised_cov = risk_estimators.filter_corr_hierarchical(cov_mat,
             method='complete', draw_plot=False)
 
-    denoised_cov = pd.DataFrame(denoised_cov)
+    denoised_cov = pd.DataFrame(denoised_cov).set_index(cov_mat.columns)
     denoised_cov.columns = cov_mat.columns
     denoised_cor = risk_estimators.cov_to_corr(denoised_cov)
     return denoised_cov, denoised_cor

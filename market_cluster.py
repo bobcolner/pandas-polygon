@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score
 
 
 def evaluate_clustering(labels_true: list, labels_pred: list) -> dict:
+    from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score
     ari = adjusted_rand_score(labels_true, labels_pred)
     ami = adjusted_mutual_info_score(labels_true, labels_pred)
     return {'ari': ari, 'ami': ami}
@@ -43,3 +43,31 @@ def get_corex_clusters(X: np.array, n_clusters: int) -> np.array:
     corex = Corex(n_hidden=n_clusters, gaussianize=None, verbose=True)
     corex.fit(X)
     return corex.clusters()
+
+
+def get_spectral_clusters(X: np.array, n_clusters: int) -> np.array:
+    from sklearn.cluster import SpectralClustering
+    model = SpectralClustering(n_clusters, n_jobs=-1).fit(X)
+    return model.labels_
+
+
+def get_meanshift_clusters(X: np.array, n_clusters: int) -> np.array:
+    from sklearn.cluster import MeanShift
+    model = MeanShift(n_clusters, n_jobs=-1).fit(X)
+    return model.labels_
+    
+
+def get_affinityprop_clusters(X: np.array) -> np.array:
+    from sklearn.cluster import AffinityPropagation
+    model = AffinityPropagation().fit(X)
+    return model.labels_
+
+
+def get_birch_clusters(X: np.array, n_clusters: int) -> np.array:
+    from sklearn.cluster import Birch
+    model = Birch().fit(X)
+    return model.labels_
+
+
+def fit_cluster_model(ClusterMod, n_clusters: int):
+    return ClusterMod(n_clusters=n_clusters, n_jobs=-1).fit(X).labels_

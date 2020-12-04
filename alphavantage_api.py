@@ -23,11 +23,11 @@ def get_fx_intaday(from_symbol: str, to_symbol: str, interval: str='15min'):
     url = BASE_URL + f"/query?function=FX_INTRADAY&from_symbol={from_symbol}&to_symbol={to_symbol}&interval={interval}&outputsize=full&apikey={ALPHAVANTAGE_API_KEY}"
     response = get(url)
     data = validate_response(response)
-    return pd.DataFrame(data[f"Time Series FX ({interval})"]).transpose()
+    return pd.DataFrame(data[f"Time Series FX ({interval})"], dtype='float').transpose()
 
 
 def get_crypto_daily(symbol: str='BTC', market: str='USD'):
     url = BASE_URL + f"/query?function=DIGITAL_CURRENCY_DAILY&symbol={symbol}&market={market}&apikey={ALPHAVANTAGE_API_KEY}"
     response = get(url)
     data = validate_response(response)
-    return pd.DataFrame(data['Time Series (Digital Currency Daily)']).transpose()
+    return pd.DataFrame(data['Time Series (Digital Currency Daily)'], dtype='float').transpose()

@@ -61,15 +61,17 @@ def denoise_cov(cov_mat: pd.DataFrame, method: str, rows_per_col: float, detone:
     return denoised_cov, denoised_cor
 
 
-def cov_denoise_detone_dist(data: pd.DataFrame, detone: bool) -> tuple:
+def cov_denoise_detone_dist(data: pd.DataFrame, cov_method: str='shrinked_lw',
+    dn_method: str='const_resid_eigen', detone: bool=False) -> tuple:
+
     cov_mat, cor_mat = get_cov(
         data=data,
-        method='shrinked_oas', 
+        method=cov_method,
         price_data=False
         )
     dncov_mat, dncor_mat = denoise_cov(
         cov_mat=cov_mat,
-        method='const_resid_eigen',
+        method=dn_method,  # const_resid_eigen, target_shrink, spectral
         rows_per_col=data.shape[0] / data.shape[1],
         detone=detone,
         )
@@ -77,4 +79,4 @@ def cov_denoise_detone_dist(data: pd.DataFrame, detone: bool) -> tuple:
         X=dncor_mat, 
         distance_metric='abs_angular'
         )
-    return dist_mat
+    return dist_mat, dncor_mat

@@ -15,7 +15,7 @@ dependencies:
   - statsmodels
   # - pingouin
   # - fastcluster
-  - pyclustering  
+  - pyclustering
   - pyarrow>=2.0
   - pandas>=1.1
   - pandas_market_calendars
@@ -78,6 +78,8 @@ dependencies:
 # https://github.com/gregversteeg/LinearSieve
 
 # https://github.com/ChongYou/subspace-clustering
+  # - progressbar
+  # - spams
 # https://github.com/padilha/biclustlib
 # https://github.com/KronicDeth/biclustering
 # https://github.com/Biclustering/biclust

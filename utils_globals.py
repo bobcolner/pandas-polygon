@@ -22,6 +22,11 @@ except:
     ALPHAVANTAGE_API_KEY = 'seceret'
 
 try:
+    TIINGO_API_KEY = environ['TIINGO_API_KEY']
+except:
+    TIINGO_API_KEY = 'seceret'
+
+try:
     B2_ACCESS_KEY_ID = environ['B2_ACCESS_KEY_ID']
 except:
     B2_ACCESS_KEY_ID = 'seceret'

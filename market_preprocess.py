@@ -90,7 +90,7 @@ def merge_symbol_stats(df):
     sym_stats = df.groupby('symbol')[['range_value_pct', 'dollar_total']].median()
     sym_details = pd.read_feather(
         path='data/sym_details.feather',
-        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
+        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
     ).set_index('symbol')
     sym_meta = sym_details.join(other=sym_stats, how='right')
     # sym_meta.pivot_table(index='industry', columns='sector', values='dollar_total', aggfunc=len)
@@ -116,7 +116,7 @@ def prepare_data(start_date: str, end_date: str, beta_symbol: str=None) -> dict:
     pivot_results = transform_prices(df)
     # results dict
     r = {}
-    r['df'] = df.drop(columns=['date', 'midprice', 'range'])
+    r['daily_price'] = df.drop(columns=['date', 'midprice', 'range'])
     r['sym_meta'] = sym_meta
     r.update(pivot_results)
     if beta_symbol:

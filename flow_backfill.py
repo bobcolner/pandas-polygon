@@ -44,7 +44,8 @@ def get_flow():
     return flow
 
 
-def run_flow(symbols: list, tick_type: str, start_date: str, end_date: str=(date.today() - timedelta(days=1)).isoformat(),
+def run_flow(symbols: list, tick_type: str, start_date: str, 
+    end_date: str=(date.today() - timedelta(days=1)).isoformat(),
     n_workers: int=4, threads_per_worker: int=8, processes: bool=False):
 
     flow = get_flow()

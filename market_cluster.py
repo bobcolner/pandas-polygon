@@ -3,33 +3,36 @@ import pandas as pd
 # https://scikit-learn.org/stable/modules/classes.html#module-sklearn.cluster
 
 
-def cluster_metrics(lables: pd.Series, dist_mat: pd.DataFrame, sym_meta: pd.DataFrame) -> pd.DataFrame:
+def cluster_metrics(lables: list, dist_mat: pd.DataFrame, sym_meta: pd.DataFrame) -> pd.DataFrame:
+    lables = pd.Series(lables, name='lables')  # cast labels as Series
     results = []
     for k in np.unique(lables):
         clust_idx = lables[lables == k]
 
         clust_dist_mat = dist_mat.iloc[clust_idx.index, clust_idx.index]
         clust_dist_mat[clust_dist_mat==0] = None  # remove identity cor/dist
-        clust_avg_similarity = 1 - clust_dist_mat.mean().mean()
 
         clust_meta = sym_meta[sym_meta.index.isin(clust_dist_mat.columns)]
         clust_meta = clust_meta.drop(columns=['sic','cik','listdate','exchangeSymbol','type'])
         
         unq_sector = len(clust_meta.sector.unique())
-        sector_purity = (clust_meta.shape[0] / unq_sector) / clust_meta.shape[0]
         unq_industry = len(clust_meta.industry.unique())
-        industry_purity = (clust_meta.shape[0] / unq_industry) / clust_meta.shape[0]
         
         clust = {
             'label': k, 
-            'size': clust_meta.shape[0],
-            'avg_similartiy': clust_avg_similarity,
-            'sector_purity': sector_purity,
-            'industry_purity': industry_purity,
-            'avg_range_value_pct': clust_meta.range_value_pct.mean(),
-            'med_daily_dollar_volume': clust_meta.dollar_total.median(),
+            'names': clust_meta['name'].tolist(),
+            'symbols': clust_meta.index.tolist(),
+            'cluster_size': clust_meta.shape[0],
+            'avg_similartiy': 1 - clust_dist_mat.mean().mean(),
+            # 'avg_similartiy_std': 1 - clust_dist_mat.std().mean(),
+            'sector_purity': (clust_meta.shape[0] / unq_sector) / clust_meta.shape[0],
+            'industry_purity': (clust_meta.shape[0] / unq_industry) / clust_meta.shape[0],
+            'top_sector': clust_meta['sector'].value_counts().index[0],
+            'top_industry': clust_meta['industry'].value_counts().index[0],
+            'avg_range_value_pct': clust_meta['range_value_pct'].mean(),
+            'med_daily_dollar_volume': clust_meta['dollar_total'].median(),
             'dist_mat': clust_dist_mat, 
-            'symbol_meta': clust_meta, 
+            'symbol_meta': clust_meta,
         }
         results.append(clust)
         
@@ -42,12 +45,12 @@ def cluster_ground_truth_eval(get_cluster_fn, n_clusters: int, X: np.array, grou
         cluster_labels = model.labels_
     else:
         cluster_labels = model.clusters()
-    eval_metrics = gt_cluster_eval(labels_true=ground_truth, labels_pred=cluster_labels)
+    eval_metrics = ground_truth_eval(labels_true=ground_truth, labels_pred=cluster_labels)
     eval_metrics.update({'cluster_labels': cluster_labels, 'model': model})
     return eval_metrics
 
 
-def gt_cluster_eval(labels_true: list, labels_pred: list) -> dict:
+def ground_truth_eval(labels_true: list, labels_pred: list) -> dict:
     from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score
     ari = adjusted_rand_score(labels_true, labels_pred)
     ami = adjusted_mutual_info_score(labels_true, labels_pred)

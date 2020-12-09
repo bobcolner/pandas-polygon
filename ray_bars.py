@@ -6,7 +6,7 @@ from polygon_s3 import fetch_date_df
 from polygon_ds import get_dates_df
 from bar_samples import build_bars
 from bar_labels import label_bars, get_concurrent_stats
-from filters import jma_filter_df
+from utils_filters import jma_filter_df
 # https://robotwealth.com/zorro-132957/
 
 

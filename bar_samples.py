@@ -1,7 +1,7 @@
 import datetime
 import pandas as pd
 from statsmodels.stats.weightstats import DescrStatsW
-from filters import jma_filter_update
+from utils_filters import jma_filter_update
 
 
 def tick_rule(first_price: float, second_price: float, last_side: int=0) -> int:

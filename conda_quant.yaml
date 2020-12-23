@@ -11,6 +11,7 @@ dependencies:
   - numpy
   - scipy
   - scikit-learn
+  - lime
   - category_encoders
   - statsmodels
   # - pingouin
@@ -22,12 +23,15 @@ dependencies:
   - ipython
   - ipdb
   # - filprofiler
-  - jupyterlab  # qgrid2, @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @mamba-org/gator-lab, @jupyterlab/shortcutui, @jupyterlab/toc
-  # jupyterlab-tailwind-theme, jupyterlab-neon-theme, base16-mexico-light, @arbennett/base16-gruvbox-light, @arbennett/base16-solarized-light, jupyterlab-theme-solarized-dark, jupyterlab_onedark, @arbennett/base16-one-dark, @arbennett/base16-monokai, @yeebc/jupyterlab_neon_theme, @arbennett/base16-nord, jupyterlab-custom-theme, @nimbous/jupyterlab-calm-theme, @fredericosantos/jupyterlab-fsx-monokai-theme, @arbennett/base16-solarized-dark, @arbennett/base16-gruvbox-dark
-  - mamba_gator
+  - jupyterlab  # qgrid2, @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @jupyterlab/shortcutui, @jupyterlab/toc
+  # jupyterlab-tailwind-theme, jupyterlab-neon-theme, base16-mexico-light, @arbennett/base16-gruvbox-light, 
+  # @arbennett/base16-solarized-light, jupyterlab-theme-solarized-dark, jupyterlab_onedark, @arbennett/base16-one-dark, 
+  # @arbennett/base16-monokai, @yeebc/jupyterlab_neon_theme, @arbennett/base16-nord, jupyterlab-custom-theme,
+  # @nimbous/jupyterlab-calm-theme, @fredericosantos/jupyterlab-fsx-monokai-theme, @arbennett/base16-solarized-dark, 
+  # @arbennett/base16-gruvbox-dark
   - jupyterlab-git
+  # - mamba_gator
   - nbdime
-  - pandas-profiling
   - dask
   - distributed
   # - modin
@@ -45,6 +49,7 @@ dependencies:
   - tqdm
   - matplotlib
   - bokeh
+  - pandas-profiling
   - qgrid
   # - cvxpy
   # - numba
@@ -61,6 +66,7 @@ dependencies:
     # - fracdiff
     - pandas-bokeh
     - finplot
+    - yellowbrick
     - ray[tune]
     - tune-sklearn
     # - linearcorex

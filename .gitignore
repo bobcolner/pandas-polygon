@@ -10,3 +10,4 @@ bokeh_output.html
 data/*
 dask-worker-space/*
 joblib/*
+.jupyter_symlinks/*

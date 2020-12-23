@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 
-def jma_filter_update(value: float, state: dict, length: int, power: int, phase: int=0) -> dict:
+def jma_filter_update(value: float, state: dict, length: int, power: float, phase: float) -> dict:
     if phase < -100:
         phase_ratio = 0.5
     elif phase > 100:
@@ -25,8 +25,13 @@ def jma_filter_update(value: float, state: dict, length: int, power: int, phase:
     return state_next
 
 
-def jma_rolling_filter(series: pd.Series, length: int, power: int, phase: int=0) -> list:
-    state = {'e0': 0, 'e1': 0, 'e2': 0, 'jma': series.values[0]}
+def jma_rolling_filter(series: pd.Series, length: int, power: float, phase: float) -> list:
+    state = {
+        'e0': series.values[0], 
+        'e1': 0.0, 
+        'e2': 0.0, 
+        'jma': series.values[0],
+        }
     jma = []
     for value in series:
         state = jma_filter_update(value, state, length, power, phase)
@@ -36,7 +41,7 @@ def jma_rolling_filter(series: pd.Series, length: int, power: int, phase: int=0)
     return jma
 
 
-def jma_expanding_filter(series: pd.Series, length: int, power: int, phase: int=0) -> pd.DataFrame:
+def jma_expanding_filter(series: pd.Series, length: int, power: float, phase: float) -> list:
     
     if length < 1:
         raise ValueError('length parameter must be >= 1')
@@ -50,7 +55,7 @@ def jma_expanding_filter(series: pd.Series, length: int, power: int, phase: int=
     return running_jma
 
 
-def jma_filter_df(df: pd.DataFrame, col: str, length: int, power: float, phase: int=0, expand: bool=False) -> pd.DataFrame:
+def jma_filter_df(df: pd.DataFrame, col: str, length: int, power: float, phase: float=0, expand: bool=False) -> pd.DataFrame:
     if expand:
         df.loc[:, col+'_jma'] = jma_expanding_filter(df[col], length, power, phase)
     else:

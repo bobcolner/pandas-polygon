@@ -13,20 +13,20 @@ def validate_response(response: str):
         response.raise_for_status()
 
 
-def get_symbol_details(symbol: str):
+def get_symbol_details(symbol: str) -> dict:
     url = BASE_URL + f"/query?function=OVERVIEW&symbol={symbol}&apikey={ALPHAVANTAGE_API_KEY}"
     response = get(url)
     return validate_response(response)
 
 
-def get_fx_intaday(from_symbol: str, to_symbol: str, interval: str='15min'):
+def get_fx_intaday(from_symbol: str, to_symbol: str, interval: str='15min') -> pd.DataFrame:
     url = BASE_URL + f"/query?function=FX_INTRADAY&from_symbol={from_symbol}&to_symbol={to_symbol}&interval={interval}&outputsize=full&apikey={ALPHAVANTAGE_API_KEY}"
     response = get(url)
     data = validate_response(response)
     return pd.DataFrame(data[f"Time Series FX ({interval})"], dtype='float').transpose()
 
 
-def get_crypto_daily(symbol: str='BTC', market: str='USD'):
+def get_crypto_daily(symbol: str='BTC', market: str='USD') -> pd.DataFrame:
     url = BASE_URL + f"/query?function=DIGITAL_CURRENCY_DAILY&symbol={symbol}&market={market}&apikey={ALPHAVANTAGE_API_KEY}"
     response = get(url)
     data = validate_response(response)

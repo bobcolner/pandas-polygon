@@ -69,13 +69,13 @@ def date_df_to_file(df: pd.DataFrame, symbol:str, date:str, tick_type: str) -> s
     return path + 'data.feather'
 
 
-def put_date_df_to_s3(df: pd.DataFrame, symbol: str, date: str, tick_type: str) -> pd.DataFrame:
+def put_date_df_to_s3(df: pd.DataFrame, symbol: str, date: str, tick_type: str):
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
         s3fs.put(tmp_ref1.name, S3_PATH + f"/{tick_type}/symbol={symbol}/date={date}/data.feather")
 
 
-def put_df_to_s3(df: pd.DataFrame, s3_file_path: str) -> pd.DataFrame:
+def put_df_to_s3(df: pd.DataFrame, s3_file_path: str):
     with NamedTemporaryFile(mode='w+b') as tmp_ref1:
         df.to_feather(path=tmp_ref1.name, version=2)
         s3fs.put(tmp_ref1.name, S3_PATH + f"/{s3_file_path}/data.feather")

@@ -268,8 +268,8 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
 
     if len(state) <= (jma_length + 1):  # filling window/buffer
         tick['status'] = 'filter_warm_up'
-    elif tick['date_time'] < '8am nyc' and tick['date_time'] > '6pm nyc':
-        tick['status'] = 'after_hours'
+    # elif tick['date_time'] < '8am nyc' and tick['date_time'] > '6pm nyc':
+    #     tick['status'] = 'after_hours'
     elif tick['volume'] < 1:  # zero volume/size tick
         tick['status'] = 'zero_volume'
     elif tick['irregular'] == True:  # 'irrgular' tick condition

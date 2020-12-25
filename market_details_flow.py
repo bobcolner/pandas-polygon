@@ -13,8 +13,7 @@ result_filename = "{task_full_name}.prefect"
 @task(checkpoint=True, target=result_filename)
 def symbol_details_task(symbol: str) -> dict:
     print(symbol)
-    details = get_ticker_details(symbol)
-    return details
+    return get_ticker_details(symbol)
 
 
 @task(checkpoint=True, target=result_filename)

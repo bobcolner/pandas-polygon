@@ -1,4 +1,4 @@
-from datetime import timedelta, date
+from datetime import timedelta, datetime, date as dt
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
 from prefect.engine.executors import DaskExecutor, LocalExecutor
@@ -45,8 +45,11 @@ def get_flow():
 
 
 def run_flow(symbols: list, tick_type: str, start_date: str, 
-    end_date: str=(date.today() - timedelta(days=1)).isoformat(),
-    n_workers: int=2, threads_per_worker: int=4, processes: bool=False):
+    # end_date: str=(datetime.utcnow() - timedelta(days=1)).isoformat().split('T')[0],  # yesterday utc
+    end_date: str=(dt.today() - timedelta(days=1)).isoformat(),  # yesterday local tz
+    n_workers: int=(cpu_count(logical=False)), 
+    threads_per_worker: int=8,
+    processes: bool=False):
     
     if type(symbols) != list:
         raise ValueError('symbols expects a list type')

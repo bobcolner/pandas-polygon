@@ -19,6 +19,7 @@ dependencies:
   - pyclustering
   - pyarrow>=2.0
   - pandas>=1.1
+  # - pandarallel
   - pandas_market_calendars
   - ipython
   - ipdb

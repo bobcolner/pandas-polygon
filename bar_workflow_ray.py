@@ -10,35 +10,6 @@ from utils_filters import jma_filter_df
 # https://robotwealth.com/zorro-132957/
 
 
-@ray.remote
-def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
-    # get ticks for current date
-    ticks_df = fetch_date_df(symbol, date, tick_type='trades')
-    # sample bars
-    bars, state = build_bars(ticks_df, thresh)
-    return {'symbol': symbol, 'date': date, 'thresh': thresh, 'bars': bars}
-
-
-def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
-    futures = []
-    for row in daily_stats_df.itertuples():
-        if 'range_jma_lag' in daily_stats_df.columns:
-            thresh.update({'renko_size': row.range_jma_lag / range_frac})
-        # if 'vwap_jma_lag' in daily_stats_df.columns:
-        #     thresh.update({'min_jma_range': row.vwap_jma_lag * 0.0005})
-        if 'imbalance_thresh_jma_lag' in daily_stats_df.columns:
-            thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
-
-        bars = build_bars_ray.remote(
-            symbol=symbol, 
-            date=row.date,
-            thresh=thresh
-        )
-        futures.append(bars)
-
-    return ray.get(futures)
-
-
 def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thresh: float) -> pd.DataFrame:
     results = []
     for date_d in bar_dates:
@@ -153,7 +124,7 @@ def fill_gaps_dates(labeled_bar_dates: list) -> tuple:
 def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     # get exta 10 days
     adj_start_date = (dt.datetime.fromisoformat(start_date) - dt.timedelta(days=10)).date().isoformat()
-    # get market daily df
+    # get market daily from pyarrow dataset
     df = get_dates_df(symbol='market', tick_type='daily', start_date=adj_start_date, end_date=end_date, source='local')
     df = df.loc[df['symbol'] == symbol].reset_index(drop=True)
     # range/volitiliry metric
@@ -167,6 +138,35 @@ def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.Dat
     return df.dropna().reset_index(drop=True)
 
 
+@ray.remote
+def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
+    # get ticks for current date
+    ticks_df = fetch_date_df(symbol, date, tick_type='trades')
+    # sample bars
+    bars, state = build_bars(ticks_df, thresh)
+    return {'symbol': symbol, 'date': date, 'thresh': thresh, 'bars': bars}
+
+
+def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
+    futures = []
+    for row in daily_stats_df.itertuples():
+        if 'range_jma_lag' in daily_stats_df.columns:
+            rs = max(row.range_jma_lag / range_frac, row.vwap_jma_lag * 0.0005)
+            thresh.update({'renko_size': rs})
+
+        if 'imbalance_thresh_jma_lag' in daily_stats_df.columns:
+            thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
+
+        bars = build_bars_ray.remote(
+            symbol=symbol, 
+            date=row.date,
+            thresh=thresh
+        )
+        futures.append(bars)
+
+    return ray.get(futures)
+
+
 def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict) -> tuple:
     # calculate daily ATR filter
     daily_vol_df = get_symbol_vol_filter(symbol, start_date, end_date)
@@ -178,7 +178,7 @@ def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict)
         range_frac=12
         )
     # calcuate stats on 1st pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, 0.95)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh=0.95)
     # 2ed pass bar sampleing based on ATR and imbalance threshold
     bar_dates = build_bars_dates_ray(
         daily_stats_df=daily_bar_stats_df,
@@ -187,7 +187,7 @@ def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict)
         range_frac=15
         )
     # calcuate stats on 2ed pass bar samples
-    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, 0.95)
+    daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh=0.95)
     # label 2ed pass bar samples
     labeled_bar_dates = label_bars_dates_ray(
         bar_dates, 

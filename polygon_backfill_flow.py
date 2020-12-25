@@ -46,7 +46,10 @@ def get_flow():
 
 def run_flow(symbols: list, tick_type: str, start_date: str, 
     end_date: str=(date.today() - timedelta(days=1)).isoformat(),
-    n_workers: int=4, threads_per_worker: int=8, processes: bool=False):
+    n_workers: int=2, threads_per_worker: int=4, processes: bool=False):
+    
+    if type(symbols) != list:
+        raise ValueError('symbols expects a list type')
 
     flow = get_flow()
     # executor = LocalExecutor()

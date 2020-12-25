@@ -69,6 +69,7 @@ dependencies:
     - yellowbrick
     - ray[tune]
     - tune-sklearn
+    - k-means-constrained
     # - linearcorex
     # - corextopic
     # - skranger

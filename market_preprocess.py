@@ -2,8 +2,15 @@ import numpy as np
 import pandas as pd
 from polygon_ds import get_dates_df
 from polygon_df import get_symbol_details_df
-from market_partial_cor import colwise_linreg_residuals
+from market_beta_resids import colwise_linreg_residuals
 
+
+symbol_details_path = 'data/sym_details.feather'
+
+details_cols = [
+    'symbol', 'name', 'type', 'sector', 'industry', 'hq_country', 'exchangeSymbol', 'exchange', 
+    'description', 'tags', 'url', 'listdate', 'cik', 'sic'
+    ]
 
 def all_dates_filer(df: pd.DataFrame) -> pd.DataFrame:
     sym_count = df.groupby('symbol')[['open']].count()
@@ -47,10 +54,7 @@ def min_value_filter(df: pd.DataFrame, min_dollar_value: float) -> pd.DataFrame:
 
 
 def symbol_details_filter(df: pd.DataFrame) -> pd.DataFrame:
-    sym_details = pd.read_feather(
-        path='data/sym_details.feather', 
-        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'similar', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
-        )
+    sym_details = pd.read_feather(path=symbol_details_path, columns=details_cols)
     mask = (sym_details.sector!='') & (sym_details.type.str.upper()=='CS')
     sym_details = sym_details[mask].set_index('symbol')
     df_filtered = df.loc[df.symbol.isin(sym_details.index), :]
@@ -88,10 +92,7 @@ def filter_market(df):
 
 def merge_symbol_stats(df):
     sym_stats = df.groupby('symbol')[['range_value_pct', 'dollar_total']].median()
-    sym_details = pd.read_feather(
-        path='data/sym_details.feather',
-        columns=['symbol', 'name', 'type', 'sector', 'industry', 'tags', 'hq_country', 'exchangeSymbol', 'listdate', 'cik', 'sic']
-    ).set_index('symbol')
+    sym_details = pd.read_feather(path=symbol_details_path, columns=details_cols).set_index('symbol')
     sym_meta = sym_details.join(other=sym_stats, how='right')
     # sym_meta.pivot_table(index='industry', columns='sector', values='dollar_total', aggfunc=len)
     return sym_meta
@@ -117,7 +118,7 @@ def prepare_data(start_date: str, end_date: str, beta_symbol: str=None) -> dict:
     # results dict
     r = {}
     r['daily_price'] = df.drop(columns=['date', 'midprice', 'range'])
-    r['sym_meta'] = sym_meta
+    r['symbol_meta'] = sym_meta
     r.update(pivot_results)
     if beta_symbol:
         beta_results = transform_prices(df_all[df_all.symbol == beta_symbol])

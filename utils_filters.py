@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import pandas as pd
 
@@ -83,9 +82,10 @@ def rema_filter(series: pd.Series, length: int, lamb: float) -> list:
 
 
 def supersmoother(x: list, n: int=10) -> np.ndarray:
+    from math import exp, cos, radians
     assert (n > 0) and (n < len(x))
-    a = math.exp(-1.414 * 3.14159 / n)
-    b = math.cos(math.radians(1.414 * 180 / n))
+    a = exp(-1.414 * 3.14159 / n)
+    b = cos(radians(1.414 * 180 / n))
     c2 = b
     c3 = -a * a
     c1 = 1 - c2 - c3

@@ -12,7 +12,7 @@ def run_stream_ticks(tickers: str='T.SPY, Q.SPY', file_name: str='data.txt'):
 
 
 # https://www.willmcgugan.com/blog/tech/post/speeding-up-websockets-60x/
-async def stream_ticks(tickers: str, output_fname: str, print_msg: bool=False):
+async def stream_ticks(tickers: str, output_fname: str, print_msg: bool=False, batch: bool=True):
     # connect to ws
     async with open_websocket_url('wss://alpaca.socket.polygon.io/stocks') as ws:
         # authenticate
@@ -25,13 +25,17 @@ async def stream_ticks(tickers: str, output_fname: str, print_msg: bool=False):
                 message = await ws.get_message()
                 if print_msg:
                     print(message)
-                out_file.write(str(time_ns()) + '||' + message + '\n')
-                # ticks = json.loads(message)
-                # for tick in ticks:
-                #     if tick['ev'] not in ['T', 'Q']:
-                #         continue
-                #     tick['a'] = time_ns()
-                #     out_file.write(json.dumps(tick) + '\n')
+
+                if batch:
+                    out_file.write(str(time_ns()) + '||' + message + '\n')
+                else:
+                    ticks = json.loads(message)
+                    for tick in ticks:
+                        if tick['ev'] not in ['T', 'Q']:
+                            continue
+                        tick['a'] = time_ns()
+                        out_file.write(json.dumps(tick) + '\n')
+    return True
 
 
 def trades_to_df(trades: list) -> pd.DataFrame:
@@ -62,7 +66,7 @@ def trades_to_df(trades: list) -> pd.DataFrame:
     return df
 
 
-def process_ws_file(file_name: str='data.txt') -> pd.DataFrame:
+def process_ws_file(file_name: str='data.txt', batch: bool=True) -> pd.DataFrame:
     with open(file=file_name, mode='r') as fio:
         trades = []
         for line in fio:

@@ -4,8 +4,9 @@ import pandas as pd
 
 
 def cluster_metrics(lables: list, dist_mat: pd.DataFrame, sym_meta: pd.DataFrame) -> pd.DataFrame:
+
     lables = pd.Series(lables, name='lables')  # cast labels as Series
-    results = []
+    cluster_metrics = []
     for k in np.unique(lables):
         clust_idx = lables[lables == k]
 
@@ -19,7 +20,7 @@ def cluster_metrics(lables: list, dist_mat: pd.DataFrame, sym_meta: pd.DataFrame
         unq_industry = len(clust_meta.industry.unique())
         
         clust = {
-            'label': k, 
+            'label': k,
             'names': clust_meta['name'].tolist(),
             'symbols': clust_meta.index.tolist(),
             'cluster_size': clust_meta.shape[0],
@@ -31,12 +32,12 @@ def cluster_metrics(lables: list, dist_mat: pd.DataFrame, sym_meta: pd.DataFrame
             'top_industry': clust_meta['industry'].value_counts().index[0],
             'avg_range_value_pct': clust_meta['range_value_pct'].mean(),
             'med_daily_dollar_volume': clust_meta['dollar_total'].median(),
-            'dist_mat': clust_dist_mat, 
-            'symbol_meta': clust_meta,
+            'symbols_dist_df': clust_dist_mat,
+            'symbols_meta_df': clust_meta,
         }
-        results.append(clust)
+        cluster_metrics.append(clust)
         
-    return pd.DataFrame(results).set_index('label')
+    return pd.DataFrame(cluster_metrics).set_index('label')
 
 
 def cluster_ground_truth_eval(get_cluster_fn, n_clusters: int, X: np.array, ground_truth: np.array) -> dict:
@@ -112,3 +113,10 @@ def get_birch_clusters(X: np.array, n_clusters: int):
 def get_sparse_pca_model(X: np.array, n_clusters: int):
     from sklearn.decomposition import SparsePCA
     return SparsePCA(n_componentsint=n_clusters, alpha=1.0).fit(X)
+
+
+def get_kmean_constrained_clusters(X: np.array, n_clusters: int, 
+    size_min: int=5, size_max: int=50):
+    from k_means_constrained import KMeansConstrained
+    return KMeansConstrained(n_clusters, size_min, size_max, 
+        n_init=8, n_jobs=-1).fit(X)

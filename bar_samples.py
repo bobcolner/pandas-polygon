@@ -54,8 +54,8 @@ def imbalance_runs(state: dict) -> dict:
 
 def imbalance_net(state: dict) -> dict:
     state['stat']['tick_imbalance'] += state['trades']['side'][-1]
-    state['stat']['volume_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1]
-    state['stat']['dollar_imbalance'] += state['trades']['side'][-1] * state['trades']['volume'][-1] * state['trades']['price'][-1]
+    state['stat']['volume_imbalance'] += (state['trades']['side'][-1] * state['trades']['volume'][-1])
+    state['stat']['dollar_imbalance'] += (state['trades']['side'][-1] * state['trades']['volume'][-1] * state['trades']['price'][-1])
     return state
 
 
@@ -266,18 +266,18 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
 
     tick['ts_diff'] = abs(tick['sip_dt'] - tick['exchange_dt'])
 
-    if len(state) <= (jma_length + 1):  # filling window/buffer
-        tick['status'] = 'filter_warm_up'
+    # if len(state) <= (jma_length + 1):  # filling window/buffer
+    #     tick['status'] = 'filter_warm_up'
     # elif tick['date_time'] < '8am nyc' and tick['date_time'] > '6pm nyc':
     #     tick['status'] = 'after_hours'
-    elif tick['volume'] < 1:  # zero volume/size tick
+    if tick['volume'] < 1:  # zero volume/size tick
         tick['status'] = 'zero_volume'
     elif tick['irregular'] == True:  # 'irrgular' tick condition
-        tick['status'] = 'irregular_tick_condition'
+        tick['status'] = 'irregular_condition'
     elif abs(tick['sip_dt'] - tick['exchange_dt']) > pd.to_timedelta(2, unit='S'): # remove large ts deltas
-        tick['status'] = 'timestamp_diff'
+        tick['status'] = 'timestamps_delta'
     elif abs(tick['pct_diff']) > 0.001:  # jma filter outlier
-        tick['status'] = 'filter_outlier'
+        tick['status'] = 'outlier_filter'
     else:
         tick['status'] = 'clean'
 

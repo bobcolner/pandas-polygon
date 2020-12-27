@@ -190,10 +190,10 @@ def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict)
     daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh=0.95)
     # label 2ed pass bar samples
     labeled_bar_dates = label_bars_dates_ray(
-        bar_dates, 
-        symbol, 
-        label_length_mins=30, 
-        label_reward_ratios=list(np.arange(3, 12, 1))
+        bar_dates,
+        symbol,
+        label_length_mins=30,
+        label_reward_ratios=list(np.arange(2, 10, 1))
         )
     # fill daily gaps
     labeled_bar_dates, stacked_bars_df = fill_gaps_dates(labeled_bar_dates)

@@ -26,23 +26,24 @@ def get_trend_outcome(label_prices: pd.DataFrame) -> dict:
     return trend
 
 
-def get_tb_outcome(reward_ratio: float, risk_level: float, side: str, label_prices: pd.DataFrame, goal: str='profit') -> dict:
+def get_tb_outcome(reward_ratio: float, risk_level: float, side: str, label_prices: pd.DataFrame,
+                    goal: str='profit', price_col: str='jma') -> dict:
     first_price = label_prices['price'].values[0]
     if side=='long':
         if goal=='profit':
             target_price = first_price + (risk_level * reward_ratio)
-            target_at = label_prices[label_prices['price'] >= target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] >= target_price].min().date_time
         elif goal=='stop':
             target_price = first_price - risk_level
-            target_at = label_prices[label_prices['price'] < target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] < target_price].min().date_time
             reward_ratio = -1
     elif side=='short':
         if goal=='profit':
             target_price = first_price - (risk_level * reward_ratio)
-            target_at = label_prices[label_prices['price'] <= target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] <= target_price].min().date_time
         elif goal=='stop':
             target_price = first_price + risk_level
-            target_at = label_prices[label_prices['price'] > target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] > target_price].min().date_time
             reward_ratio = -1
         reward_ratio = reward_ratio * -1
     outcome = {
@@ -67,7 +68,7 @@ def triple_barrier_outcomes(label_prices: pd.DataFrame, risk_level: float, rewar
     return tb_df
 
 
-def signed_outcomes_to_label(outcomes: pd.DataFrame, label_end_at) -> dict:
+def signed_outcomes_to_label(outcomes: pd.DataFrame, label_end_at: pd._libs.tslibs.timestamps.Timestamp) -> dict:
     outcomes = outcomes.dropna()
     if outcomes.shape[0] == 0: # no outcomes
         # print('neutral')
@@ -127,27 +128,6 @@ def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.time
     return label_prices,  label_end_at
 
 
-def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int, 
-    reward_ratios: list, add_trend_label: bool=False) -> list:
-
-    for idx, row in enumerate(bars):
-        
-        label_prices, label_end_at = get_label_ticks(ticks_df, label_start_at=row['close_at'], horizon_mins=horizon_mins)
-        if len(label_prices) < 20:
-            print('Dropping label, only', len(label_prices['price']), 'trades;' 'start at:', row['close_at'])
-            continue
-
-        outcomes = triple_barrier_outcomes(label_prices, risk_level, reward_ratios)
-        label = outcomes_to_label(outcomes, label_end_at=label_end_at, label_start_at=row['close_at'])
-        label.update({'label_start_at': row['close_at'], 'label_end_at': label_end_at})
-        bars[idx].update(label)
-        if add_trend_label:
-            trend = get_trend_outcome(label_prices)
-            bars[idx].update(trend)
-
-    return bars
-
-
 def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     # from mlfinlab_bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
     from mlfinlab_concurrent import get_av_uniqueness_from_triple_barrier
@@ -167,5 +147,29 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
         'grand_avg_unq': label_avg_unq['tW'].mean(),
         # 'ind_mat': ind_mat,
         # 'ind_mat_avg_unq': avg_unq_ind_mat
-    }    
+    }
     return results
+
+
+def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int,
+    reward_ratios: list, add_trend_label: bool=False) -> list:
+
+    for idx, row in enumerate(bars):
+        
+        label_prices, label_end_at = get_label_ticks(ticks_df, label_start_at=row['close_at'], horizon_mins=horizon_mins)
+        if len(label_prices) < 20:
+            print('Dropping label, only', len(label_prices['price']), 'trades;' 'start at:', row['close_at'])
+            continue
+
+        outcomes = triple_barrier_outcomes(label_prices, risk_level, reward_ratios)
+        label = outcomes_to_label(outcomes, label_end_at)
+        label.update({
+            'label_start_at': row['close_at'],
+            'label_end_at': label_end_at,
+            })
+        bars[idx].update(label)
+        if add_trend_label:
+            trend = get_trend_outcome(label_prices)
+            bars[idx].update(trend)
+
+    return bars

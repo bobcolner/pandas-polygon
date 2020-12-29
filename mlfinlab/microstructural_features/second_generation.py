@@ -78,8 +78,8 @@ def get_trades_based_kyle_lambda(price_diff: list, volume: list, aggressor_flags
     signed_volume = np.array(volume) * np.array(aggressor_flags)
     X = np.array(signed_volume).reshape(-1, 1)
     y = np.array(price_diff)
-    coef, std = get_betas(X, y)
-    t_value = coef[0] / std[0] if std[0] > 0 else np.array([0])
+    coef, var = get_betas(X, y)
+    t_value = coef[0] / np.sqrt(var[0]) if np.sqrt(var[0]) > 0 else np.array([0])
     return [coef[0], t_value[0]]
 
 
@@ -95,8 +95,8 @@ def get_trades_based_amihud_lambda(log_ret: list, dollar_volume: list) -> List[f
     """
     X = np.array(dollar_volume).reshape(-1, 1)
     y = np.abs(np.array(log_ret))
-    coef, std = get_betas(X, y)
-    t_value = coef[0] / std[0] if std[0] > 0 else np.array([0])
+    coef, var = get_betas(X, y)
+    t_value = coef[0] / np.sqrt(var[0]) if np.sqrt(var[0]) > 0 else np.array([0])
     return [coef[0], t_value[0]]
 
 
@@ -113,6 +113,6 @@ def get_trades_based_hasbrouck_lambda(log_ret: list, dollar_volume: list, aggres
     """
     X = (np.sqrt(np.array(dollar_volume)) * np.array(aggressor_flags)).reshape(-1, 1)
     y = np.abs(np.array(log_ret))
-    coef, std = get_betas(X, y)
-    t_value = coef[0] / std[0] if std[0] > 0 else np.array([0])
+    coef, var = get_betas(X, y)
+    t_value = coef[0] / np.sqrt(var[0]) if np.sqrt(var[0]) > 0 else np.array([0])
     return [coef[0], t_value[0]]

@@ -5,7 +5,7 @@ from prefect.engine.executors import DaskExecutor, LocalExecutor
 from utils_dates import get_open_market_dates, find_remaining_dates
 from polygon_s3 import list_symbol_dates, get_and_save_date_df
 
- 
+
 @task(max_retries=2, retry_delay=timedelta(seconds=2))
 def get_remaining_symbol_dates(start_date: str, end_date: str, symbols: list, tick_type: str) -> list:
     request_dates = get_open_market_dates(start_date, end_date)

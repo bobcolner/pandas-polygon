@@ -32,20 +32,22 @@ def get_tb_outcome(reward_ratio: float, risk_level: float, side: str, label_pric
     if side=='long':
         if goal=='profit':
             target_price = first_price + (risk_level * reward_ratio)
-            target_at = label_prices[label_prices[price_col] >= target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] >= target_price].min()['date_time']
         elif goal=='stop':
             target_price = first_price - risk_level
-            target_at = label_prices[label_prices[price_col] < target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] < target_price].min()['date_time']
             reward_ratio = -1
     elif side=='short':
         if goal=='profit':
             target_price = first_price - (risk_level * reward_ratio)
-            target_at = label_prices[label_prices[price_col] <= target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] <= target_price].min()['date_time']
         elif goal=='stop':
             target_price = first_price + risk_level
-            target_at = label_prices[label_prices[price_col] > target_price].min().date_time
+            target_at = label_prices[label_prices[price_col] > target_price].min()['date_time']
             reward_ratio = -1
+
         reward_ratio = reward_ratio * -1
+
     outcome = {
         'label_side': side,
         'label_outcome': goal,
@@ -119,9 +121,7 @@ def outcomes_to_label(outcomes: pd.DataFrame, label_end_at: pd._libs.tslibs.time
     return label
 
 
-def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, 
-    horizon_mins: int) -> pd.DataFrame:
-
+def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, horizon_mins: int) -> pd.DataFrame:
     delayed_label_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
     label_end_at = label_start_at + pd.Timedelta(value=horizon_mins, unit='minutes')
     label_prices = ticks_df.loc[(ticks_df['date_time'] >= delayed_label_start_at) & (ticks_df['date_time'] < label_end_at)]
@@ -129,8 +129,8 @@ def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.time
 
 
 def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
-    # from mlfinlab_bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
-    from mlfinlab_concurrent import get_av_uniqueness_from_triple_barrier
+    # from mlfinlab.sampling.bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
+    from mlfinlab.sampling.concurrent import get_av_uniqueness_from_triple_barrier
 
     samples_info_sets = lbars_df[['label_start_at', 'label_outcome_at']]
     samples_info_sets = samples_info_sets.set_index('label_start_at')
@@ -151,7 +151,7 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     return results
 
 
-def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int,
+def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int, 
     reward_ratios: list, add_trend_label: bool=False) -> list:
 
     for idx, row in enumerate(bars):

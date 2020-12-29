@@ -149,7 +149,7 @@ class TestCodependence(unittest.TestCase):
         #Distance_matrix
         angl = get_distance_matrix(vi_matrix, distance_metric='angular')
         sq_angl = get_distance_matrix(mi_matrix, distance_metric='squared_angular')
-        abs_angl = get_distance_matrix(corr_matrix, distance_metric='abs_angular')
+        abs_angl = get_distance_matrix(corr_matrix, distance_metric='absolute_angular')
 
         #assertions
         self.assertEqual(vi_matrix.shape[0], self.X_matrix.shape[1])

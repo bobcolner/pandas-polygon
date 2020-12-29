@@ -1,78 +1,63 @@
+# conda env create --force -f conda_quant.yaml
 name: quant
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7
-  - mamba
+  - python = 3.8
+  - xeus-python
   - mkl
+  - mamba
   # - nomkl
   # - openblas
   - numpy
   - scipy
   - scikit-learn
-  - lime
-  - category_encoders
   - statsmodels
   # - pingouin
   # - fastcluster
-  - pyclustering
-  - pyarrow>=2.0
-  - pandas>=1.1
-  # - pandarallel
+  # - pyclustering
+  - pyarrow >= 2.0
+  - pandas >= 1.1
   - pandas_market_calendars
+  # trading_calendars
   - ipython
+  - jedi < 0.18
   - ipdb
-  # - filprofiler
-  - jupyterlab  # qgrid2, @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @jupyterlab/shortcutui, @jupyterlab/toc
-  # jupyterlab-tailwind-theme, jupyterlab-neon-theme, base16-mexico-light, @arbennett/base16-gruvbox-light, 
-  # @arbennett/base16-solarized-light, jupyterlab-theme-solarized-dark, jupyterlab_onedark, @arbennett/base16-one-dark, 
-  # @arbennett/base16-monokai, @yeebc/jupyterlab_neon_theme, @arbennett/base16-nord, jupyterlab-custom-theme,
-  # @nimbous/jupyterlab-calm-theme, @fredericosantos/jupyterlab-fsx-monokai-theme, @arbennett/base16-solarized-dark, 
-  # @arbennett/base16-gruvbox-dark
+  - jupyterlab < 3.0  
+  # @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @jupyterlab/shortcutui, nbdime-jupyterlab, qgrid2, @jupyterlab/git
   - jupyterlab-git
-  # - mamba_gator
+  - qgrid
   - nbdime
+  - matplotlib
+  - bokeh
   - dask
   - distributed
   # - modin
+  # - pandarallel
   # - swifter
-  # - psutil
+  - prefect[viz, gcp, aws]
   - joblib
   - tenacity
-  - prefect[viz, gcp, aws]
-  - boto3
-  - google-api-python-client
+  - psutil
+  - tqdm
   - requests
   - trio
   - fsspec
   - s3fs
-  - tqdm
-  - matplotlib
-  - bokeh
-  - pandas-profiling
-  - qgrid
-  # - cvxpy
-  # - numba
-  # - pot
-  # - networkx
-  # - graphviz
-  # - dash
-  # - dash-bootstrap-components
+  - boto3
+  - google-api-python-client
   - pip
   - pip:
-    - trio-websockets
+    - trio-websocket
     - pandas-ta
     - finta
-    # - fracdiff
+    - fracdiff
     - pandas-bokeh
     - finplot
     - yellowbrick
     - ray[tune]
     - tune-sklearn
-    - k-means-constrained
-    # - linearcorex
-    # - corextopic
     # - skranger
     # - ppscore
     # - persist-queue[extra]

@@ -105,7 +105,7 @@ def output_new_bar(state: dict) -> dict:
     # time
     new_bar['open_at'] = state['trades']['date_time'][0]
     new_bar['close_at'] = state['trades']['date_time'][-1]
-    new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']    
+    new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']
     new_bar['duration_sec'] = state['stat']['duration_sec']
     new_bar['duration_min'] = new_bar['duration_sec'] / 60
     # price
@@ -265,7 +265,6 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
     state = state[-100:] # keep most recent items
 
     tick['ts_diff'] = abs(tick['sip_dt'] - tick['exchange_dt'])
-
     # if len(state) <= (jma_length + 1):  # filling window/buffer
     #     tick['status'] = 'filter_warm_up'
     # elif tick['date_time'] < '8am nyc' and tick['date_time'] > '6pm nyc':
@@ -292,10 +291,11 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
 
 
 def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
-    
+
     filter_state = [{'jma_state': {
         'e0': ticks_df.price.values[0],
-        'e1': 0.0, 'e2': 0.0,
+        'e1': 0.0,
+        'e2': 0.0,
         'jma': ticks_df.price.values[0],
         }}]
     bar_state = reset_state(thresh)

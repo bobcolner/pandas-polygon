@@ -112,7 +112,7 @@ def get_distance_matrix(X: pd.DataFrame, distance_metric: str = 'angular') -> pd
     """
     if distance_metric == 'angular':
         distfun = lambda x: ((1 - x).round(5) / 2.) ** .5
-    elif distance_metric == 'abs_angular':
+    elif distance_metric == 'absolute_angular':
         distfun = lambda x: ((1 - abs(x)).round(5) / 2.) ** .5
     elif distance_metric == 'squared_angular':
         distfun = lambda x: ((1 - x ** 2).round(5) / 2.) ** .5

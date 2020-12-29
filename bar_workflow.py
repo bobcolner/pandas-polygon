@@ -1,7 +1,6 @@
 import datetime as dt
 import numpy as np
 import pandas as pd
-import ray
 from polygon_s3 import fetch_date_df
 from polygon_ds import get_dates_df
 from bar_samples import build_bars
@@ -40,8 +39,7 @@ def process_bar_dates(daily_vol_df: pd.DataFrame, bar_dates: list, imbalance_thr
     return daily_join_df
 
 
-@ray.remote
-def label_bars_ray(bars: list, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
+def label_bars(bars: list, symbol: str, date: str, risk_level: float, horizon_mins: int, reward_ratios: list) -> list:
     ticks_df = fetch_date_df(symbol, date, 'trades')
     labeled_bars = label_bars(
         bars=bars,
@@ -62,11 +60,11 @@ def label_bars_ray(bars: list, symbol: str, date: str, risk_level: float, horizo
         }
 
 
-def label_bars_dates_ray(bar_dates: list, symbol: str, horizon_mins: int, reward_ratios: list) -> list:
+def label_bars_dates(bar_dates: list, symbol: str, horizon_mins: int, reward_ratios: list) -> list:
 
-    futures = []
+    output = []
     for date in bar_dates:
-        result = label_bars_ray.remote(
+        result = label_bars(
             bars=date['bars'],
             symbol=symbol,
             date=date['date'],
@@ -74,9 +72,9 @@ def label_bars_dates_ray(bar_dates: list, symbol: str, horizon_mins: int, reward
             horizon_mins=horizon_mins,
             reward_ratios=reward_ratios
         )
-        futures.append(result)
+        output.append(result)
 
-    return ray.get(futures)
+    return output
 
 
 def fill_gap(bar_1: dict, bar_2: dict, renko_size: float, price_col: str='price_wmean') -> dict:
@@ -138,8 +136,7 @@ def get_symbol_vol_filter(symbol: str, start_date: str, end_date: str) -> pd.Dat
     return df.dropna().reset_index(drop=True)
 
 
-@ray.remote
-def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
+def build_bars_warp(symbol: str, date: str, thresh: dict) -> dict:
     # get ticks for current date
     ticks_df = fetch_date_df(symbol, date, tick_type='trades')
     # sample bars
@@ -147,7 +144,7 @@ def build_bars_ray(symbol: str, date: str, thresh: dict) -> dict:
     return {'symbol': symbol, 'date': date, 'thresh': thresh, 'bars': bars}
 
 
-def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
+def build_bars_dates(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str, range_frac: int) -> list:
     futures = []
     for row in daily_stats_df.itertuples():
         if 'range_jma_lag' in daily_stats_df.columns:
@@ -157,21 +154,21 @@ def build_bars_dates_ray(daily_stats_df: pd.DataFrame, thresh: dict, symbol: str
         if 'imbalance_thresh_jma_lag' in daily_stats_df.columns:
             thresh.update({'volume_imbalance': row.imbalance_thresh_jma_lag})
 
-        bars = build_bars_ray.remote(
+        bars = build_bars_warp(
             symbol=symbol, 
             date=row.date,
             thresh=thresh
         )
         futures.append(bars)
 
-    return ray.get(futures)
+    return futures
 
 
-def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict, imbalance_pass: bool=False) -> tuple:
+def bars_workflow(symbol: str, start_date: str, end_date: str, thresh: dict, imbalance_pass: bool=False) -> tuple:
     # calculate daily ATR filter
     daily_vol_df = get_symbol_vol_filter(symbol, start_date, end_date)
     # 1st pass bar sampeing based on ATR
-    bar_dates = build_bars_dates_ray(
+    bar_dates = build_bars_dates(
         daily_stats_df=daily_vol_df,
         thresh=thresh,
         symbol=symbol,
@@ -181,7 +178,7 @@ def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict,
     daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh=0.95)
 
     if imbalance_pass:  # 2ed pass bar sampling based on ATR and imbalance threshold        
-        bar_dates = build_bars_dates_ray(
+        bar_dates = build_bars_dates(
             daily_stats_df=daily_bar_stats_df,
             thresh=thresh,
             symbol=symbol,
@@ -191,7 +188,7 @@ def bars_workflow_ray(symbol: str, start_date: str, end_date: str, thresh: dict,
         daily_bar_stats_df = process_bar_dates(daily_vol_df, bar_dates, imbalance_thresh=0.95)
     
     # label pass bar samples
-    labeled_bar_dates = label_bars_dates_ray(
+    labeled_bar_dates = label_bars_dates(
         bar_dates=bar_dates,
         symbol=symbol,
         horizon_mins=30,

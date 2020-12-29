@@ -1,5 +1,5 @@
 from statsmodels.stats.weightstats import DescrStatsW
-
+    
 
 def output_new_bar(state: dict) -> dict:
     

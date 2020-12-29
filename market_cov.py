@@ -77,6 +77,6 @@ def cov_denoise_detone_dist(data: pd.DataFrame, cov_method: str='shrinked_lw',
         )
     dist_mat = get_distance_matrix(
         X=dncor_mat, 
-        distance_metric='abs_angular'
+        distance_metric='absolute_angular'
         )
     return dist_mat, dncor_mat

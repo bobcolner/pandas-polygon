@@ -44,4 +44,3 @@ def get_dates_df(symbol: str, tick_type: str, start_date: str, end_date: str, so
     
     filter_exp = (field('date') >= start_date) & (field('date') <= end_date)
     return ds.to_table(filter=filter_exp).to_pandas()
-

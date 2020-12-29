@@ -239,7 +239,7 @@ def frac_diff_ffd(series, diff_amt, thresh=1e-5):
     Note 1: thresh determines the cut-off weight for the window
     Note 2: diff_amt can be any positive fractional, not necessarity bounded [0, 1].
 
-    :param series: (pd.Series) A time series that needs to be differenced
+    :param series: (pd.DataFrame) A time series that needs to be differenced
     :param diff_amt: (float) Differencing amount
     :param thresh: (float) Threshold for minimum weight
     :return: (pd.DataFrame) A data frame of differenced series

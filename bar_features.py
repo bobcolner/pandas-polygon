@@ -2,6 +2,7 @@ from statsmodels.stats.weightstats import DescrStatsW
     
 
 def output_new_bar(state: dict) -> dict:
+    from statsmodels.stats.weightstats import DescrStatsW
     
     new_bar = {}
     if state['stat']['tick_count'] == 0:
@@ -11,7 +12,7 @@ def output_new_bar(state: dict) -> dict:
     # time
     new_bar['open_at'] = state['trades']['date_time'][0]
     new_bar['close_at'] = state['trades']['date_time'][-1]
-    new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']    
+    new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']
     new_bar['duration_sec'] = state['stat']['duration_sec']
     new_bar['duration_min'] = new_bar['duration_sec'] / 60
     # price

@@ -151,7 +151,7 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     return results
 
 
-def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int, 
+def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int,
     reward_ratios: list, add_trend_label: bool=False) -> list:
 
     for idx, row in enumerate(bars):

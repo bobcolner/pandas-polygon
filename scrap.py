@@ -570,3 +570,22 @@ def clean_trades_df(df: pd.DataFrame) -> pd.DataFrame:
     # small cols subset
     df = df[['sip_dt', 'price', 'size']]
     return df.rename(columns={'sip_dt': 'date_time', 'size': 'volume'}).reset_index(drop=True)    
+
+
+def time_bars(ticks_df: pd.DataFrame, date: str, freq: str='15min') -> list:
+    import datetime as dt
+    from tqdm import tqdm
+
+    start_date = dt.datetime.strptime(date, '%Y-%m-%d')
+    end_date = start_date + dt.timedelta(days=1)
+    dates = pd.date_range(start=start_date, end=end_date, freq=freq, tz='utc', closed=None)
+    bars = []
+    for i in tqdm(list(range(len(dates)-2))):
+        ticks = ticks_df.loc[(ticks_df['date_time'] >= dates[i]) & (ticks_df['date_time'] < dates[i+1])]
+        _, state = build_bars(ticks_df=ticks, thresh={})
+        bar = output_new_bar(state)
+        bar['open_at'] = dates[i]
+        bar['close_at'] = dates[i+1]
+        bars.append(bar)
+
+    return bars

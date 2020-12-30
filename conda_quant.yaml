@@ -25,7 +25,6 @@ dependencies:
   - jedi < 0.18
   - ipdb
   - jupyterlab < 3.0  
-  # @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @jupyterlab/shortcutui, nbdime-jupyterlab, qgrid2, @jupyterlab/git
   - jupyterlab-git
   - qgrid
   - nbdime
@@ -62,6 +61,8 @@ dependencies:
     # - ppscore
     # - persist-queue[extra]
     # - dcor
+
+# jupyter labextension install @krassowski/jupyterlab_go_to_definition, jupyterlab-execute-time, @jupyterlab/shortcutui, nbdime-jupyterlab, qgrid2, @jupyterlab/git
 
 # https://github.com/gregversteeg/gaussianize
 # https://github.com/gregversteeg/LinearCorex

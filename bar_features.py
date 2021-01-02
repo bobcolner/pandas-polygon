@@ -54,7 +54,4 @@ def output_new_bar(state: dict) -> dict:
     new_bar['tick_imbalance'] = state['stat']['tick_imbalance']
     new_bar['volume_imbalance'] = state['stat']['volume_imbalance']
     new_bar['dollar_imbalance'] = state['stat']['dollar_imbalance']
-    # new_bar['tick_imbalance_run'] = state['stat']['tick_run']
-    # new_bar['volume_imbalance_run'] = state['stat']['volume_run']
-    # new_bar['dollar_imbalance_run'] = state['stat']['dollar_run']
     return new_bar

@@ -28,9 +28,6 @@ def imbalance_runs(state: dict) -> dict:
             state['stat']['tick_run'] = 0
             state['stat']['volume_run'] = 0
             state['stat']['dollar_run'] = 0
-    # state['stat']['tick_run_max'] = state['stat']['tick_run'] if state['stat']['tick_run'] > state['stat']['tick_run_max'] else state['stat']['tick_run_max']
-    # state['stat']['volume_run_max'] = state['stat']['volume_run'] if state['stat']['volume_run'] > state['stat']['volume_run_max'] else state['stat']['volume_run_max']
-    # state['stat']['dollar_run_max'] = state['stat']['dollar_run'] if state['stat']['dollar_run'] > state['stat']['dollar_run_max'] else state['stat']['dollar_run_max']
     return state
 
 
@@ -61,9 +58,6 @@ def reset_state(thresh: dict={}) -> dict:
     state['stat']['tick_imbalance'] = 0
     state['stat']['volume_imbalance'] = 0
     state['stat']['dollar_imbalance'] = 0
-    # state['stat']['tick_run'] = 0
-    # state['stat']['volume_run'] = 0
-    # state['stat']['dollar_run'] = 0
     # copy of tick events
     state['trades'] = {}
     state['trades']['date_time'] = []
@@ -187,14 +181,20 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
     state.append(tick) # add new tick to buffer
     state = state[-100:] # keep most recent items
 
-    tick['ts_diff'] = abs(tick['sip_dt'] - tick['exchange_dt'])
+    tick['date_time'] = tick['sip_dt'].tz_localize('UTC').tz_convert('America/New_York')
 
-    if tick['volume'] < 1:  # zero volume/size tick
+    open_at = pd.Timestamp(hour=9, minute=30, year=tick['date_time'].year, 
+            month=tick['date_time'].month, day=tick['date_time'].day, tz='America/New_York')
+
+    close_at = pd.Timestamp(hour=16, year=tick['date_time'].year, 
+            month=tick['date_time'].month, day=tick['date_time'].day, tz='America/New_York')
+
+    if (tick['date_time'] < open_at) or (tick['date_time'] > close_at):
+        tick['status'] = 'after_hours'
+    elif tick['volume'] < 1:  # zero volume/size tick
         tick['status'] = 'zero_volume'
     # elif len(state) <= (jma_length + 1):  # filling window/buffer
     #     tick['status'] = 'filter_warm_up'
-    # elif tick['date_time'] < '8am nyc' and tick['date_time'] > '6pm nyc':
-    #     tick['status'] = 'after_hours'
     elif tick['irregular'] == True:  # 'irrgular' tick condition
         tick['status'] = 'irregular_condition'
     elif abs(tick['sip_dt'] - tick['exchange_dt']) > pd.to_timedelta(2, unit='S'): # remove large ts deltas
@@ -207,7 +207,6 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
     if (tick['status'] not in ['clean', 'filter_warm_up']):
         state.pop(-1)
     # format tick
-    tick['date_time'] = tick['sip_dt']
     tick.pop('sip_dt', None)
     tick.pop('exchange_dt', None)
     tick.pop('irregular', None)
@@ -215,7 +214,6 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
 
 
 def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
-
     filter_state = [{'jma_state': {
         'e0': ticks_df.price.values[0],
         'e1': 0.0,

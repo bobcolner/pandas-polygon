@@ -183,30 +183,22 @@ def filter_tick(tick: dict, state: list, jma_length: int=7, jma_power: float=2.0
 
     tick['date_time'] = tick['sip_dt'].tz_localize('UTC').tz_convert('America/New_York')
 
-    open_at = pd.Timestamp(hour=9, minute=30, year=tick['date_time'].year, 
-            month=tick['date_time'].month, day=tick['date_time'].day, tz='America/New_York')
-
-    close_at = pd.Timestamp(hour=16, year=tick['date_time'].year, 
-            month=tick['date_time'].month, day=tick['date_time'].day, tz='America/New_York')
-
-    if (tick['date_time'] < open_at) or (tick['date_time'] > close_at):
-        tick['status'] = 'after_hours'
-    elif tick['volume'] < 1:  # zero volume/size tick
+    if tick['volume'] < 1:  # zero volume/size tick
         tick['status'] = 'zero_volume'
-    # elif len(state) <= (jma_length + 1):  # filling window/buffer
-    #     tick['status'] = 'filter_warm_up'
+    elif len(state) <= (jma_length + 1):  # filling window/buffer
+        tick['status'] = 'filter_warm_up'
     elif tick['irregular'] == True:  # 'irrgular' tick condition
         tick['status'] = 'irregular_condition'
     elif abs(tick['sip_dt'] - tick['exchange_dt']) > pd.to_timedelta(2, unit='S'): # remove large ts deltas
         tick['status'] = 'timestamps_delta'
-    elif abs(tick['pct_diff']) > 0.001:  # jma filter outlier
+    elif abs(tick['pct_diff']) > 0.002:  # jma filter outlier
         tick['status'] = 'outlier_filter'
     else:
         tick['status'] = 'clean'
 
-    if (tick['status'] not in ['clean', 'filter_warm_up']):
+    if tick['status'] not in ['clean', 'filter_warm_up']:
         state.pop(-1)
-    # format tick
+
     tick.pop('sip_dt', None)
     tick.pop('exchange_dt', None)
     tick.pop('irregular', None)
@@ -224,7 +216,7 @@ def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
     bars = []
     ticks = []
     for t in ticks_df.itertuples():
-        tick = {
+        tick_raw = {
             'sip_dt': t.sip_dt,
             'exchange_dt': t.exchange_dt,
             'price': t.price,
@@ -232,10 +224,11 @@ def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
             'irregular': t.irregular,
             'status': 'new',
         }
-        tick, filter_state = filter_tick(tick, filter_state)
-        if tick['status'] == 'clean':
-            bars, bar_state = update_bar_state(tick, bar_state, bars, thresh)
+        tick_filtered, filter_state = filter_tick(tick_raw, filter_state)
+        
+        if tick_filtered['status'] == 'clean':
+            bars, bar_state = update_bar_state(tick_filtered, bar_state, bars, thresh)
 
-        ticks.append(tick)
+        ticks.append(tick_filtered)
 
     return bars, ticks

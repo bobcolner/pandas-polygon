@@ -1,5 +1,5 @@
 # conda env create --force -f conda_quant.yaml
-name: quant
+name: jlab3
 channels:
   - conda-forge
   - defaults
@@ -7,7 +7,7 @@ dependencies:
   - python = 3.8
   - xeus-python
   - mkl
-  - mamba
+  # - mamba
   # - nomkl
   # - openblas
   - numpy
@@ -22,11 +22,10 @@ dependencies:
   - pandas_market_calendars
   # trading_calendars
   - ipython
-  - jedi == 0.17.2
+  - jedi < 0.18
   - ipdb
-  - jupyterlab < 3.0  
+  - jupyterlab > 3.0  
   - jupyterlab-git
-  - qgrid
   - nbdime
   - matplotlib
   - bokeh
@@ -53,10 +52,10 @@ dependencies:
     - finta
     - fracdiff
     - pandas-bokeh
-    - finplot
-    - yellowbrick
-    - ray[tune]
-    - tune-sklearn
+    # - finplot
+    # - yellowbrick
+    # - ray[tune]
+    # - tune-sklearn
     # - skranger
     # - ppscore
     # - persist-queue[extra]

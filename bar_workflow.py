@@ -19,8 +19,6 @@ def bar_dates_stats(stacked_df: pd.DataFrame) -> pd.DataFrame:
         duration_min_median=pd.NamedAgg(column="duration_min", aggfunc="median"),
         jma_range_mean=pd.NamedAgg(column="jma_range", aggfunc="mean"),
         first_bar_open=pd.NamedAgg(column="open_at", aggfunc="min"),
-        last_bar_open=pd.NamedAgg(column="open_at", aggfunc="max"),
-        first_bar_close=pd.NamedAgg(column="close_at", aggfunc="min"),
         last_bar_close=pd.NamedAgg(column="close_at", aggfunc="max"),
     ).reset_index()
 
@@ -67,13 +65,17 @@ def fill_gaps_dates(bar_dates: list, fill_col: str) -> pd.DataFrame:
         if idx == 0:
             continue
 
-        gap_fill = fill_gap(
-            bar_1=bar_dates[idx-1]['bars'][-1],
-            bar_2=bar_dates[idx]['bars'][1],
-            renko_size=bar_dates[idx]['thresh']['renko_size'],
-            fill_col=fill_col,
-        )
-        bar_dates[idx-1]['bars'] = bar_dates[idx-1]['bars'] + gap_fill
+        try:
+            gap_fill = fill_gap(
+                bar_1=bar_dates[idx-1]['bars'][-1],
+                bar_2=bar_dates[idx]['bars'][1],
+                renko_size=bar_dates[idx]['thresh']['renko_size'],
+                fill_col=fill_col,
+            )
+            bar_dates[idx-1]['bars'] = bar_dates[idx-1]['bars'] + gap_fill
+        except:
+            print(date['date'])
+            continue
     # build continous 'stacked' bars df
     stacked = []
     for date in bar_dates:
@@ -90,43 +92,38 @@ def bar_workflow(symbol: str, date: str, thresh: dict, add_label: bool=True) -> 
     ticks_df = fetch_date_df(symbol, date, tick_type='trades')
     
     # filter market hours
-    ticks_df['nyc_dt'] = ticks_df['sip_dt'].dt.tz_localize('UTC').dt.tz_convert('America/New_York')
+    ticks_df.loc[:, 'nyc_dt'] = ticks_df['sip_dt'].dt.tz_localize('UTC').dt.tz_convert('America/New_York')
     ticks_df = ticks_df.set_index('nyc_dt').between_time('09:30:00', '16:00:00').reset_index()
     
     # sample bars
     bars, filtered_ticks = build_bars(ticks_df, thresh)
     
     # clean ticks
-    ticks2_df = pd.DataFrame(filtered_ticks)
-    ticks2_df['price_clean'] = ticks2_df['price']
-    ticks2_df.loc[ticks2_df.status != 'clean', 'price_clean'] = None
+    ft_ticks_df = pd.DataFrame(filtered_ticks)
+    ft_ticks_df['price_clean'] = ft_ticks_df['price']
+    ft_ticks_df.loc[ft_ticks_df.status != 'clean', 'price_clean'] = None
 
     if add_label:
         bars = label_bars(
             bars=bars,
-            ticks_df=ticks2_df[ticks2_df.status == 'clean'],
+            ticks_df=ft_ticks_df[ft_ticks_df.status == 'clean'],
             risk_level=thresh['renko_size'],
-            horizon_mins=thresh['max_duration_sec']/60,
+            horizon_mins=thresh['max_duration_sec'] / 60,
             reward_ratios=thresh['label_reward_ratios'],
             )
 
-    result = {
+    bar_result = {
         'symbol': symbol,
         'date': date,
-        'thresh': thresh,
         'bars': bars,
-        'ticks_df': ticks2_df,
+        'thresh': thresh,
+        'ticks_df': ticks_df,
+        'ft_ticks_df': ft_ticks_df,
         }
-    return result
+    return bar_result
 
 
-import ray
-@ray.remote
-def bar_workflow_ray(symbol: str, date: str, thresh: dict) -> tuple:
-    return bar_workflow(symbol, date, thresh)
-
-
-def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict, ray_on: bool=False) -> tuple:
+def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict, ray_on: bool=False) -> list:
 
     daily_stats_df = get_symbol_vol_filter(symbol, start_date, end_date)
     bar_dates = []
@@ -136,13 +133,12 @@ def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict
             thresh.update({'renko_size': rs})
 
         if ray_on:
-            bars = bar_workflow_ray.remote(
-                symbol=symbol, date=row.date, thresh=thresh,
-            )
+            import ray
+            bar_workflow_ray = ray.remote(bar_workflow)
+            bars = bar_workflow_ray.remote(symbol, row.date, thresh)
         else:
-            bars = bar_workflow(
-                symbol=symbol, date=row.date, thresh=thresh,
-            )
+            bars = bar_workflow(symbol, row.date, thresh)
+
         bar_dates.append(bars)
 
     if ray_on:

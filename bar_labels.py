@@ -121,13 +121,6 @@ def outcomes_to_label(outcomes: pd.DataFrame, label_end_at: pd._libs.tslibs.time
     return label
 
 
-def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, horizon_mins: int) -> pd.DataFrame:
-    delayed_label_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
-    label_end_at = label_start_at + pd.Timedelta(value=horizon_mins, unit='minutes')
-    label_prices = ticks_df.loc[(ticks_df['date_time'] >= delayed_label_start_at) & (ticks_df['date_time'] < label_end_at)]
-    return label_prices,  label_end_at
-
-
 def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     # from mlfinlab.sampling.bootstrapping import get_ind_matrix, get_ind_mat_average_uniqueness
     from mlfinlab.sampling.concurrent import get_av_uniqueness_from_triple_barrier
@@ -151,13 +144,26 @@ def get_concurrent_stats(lbars_df: pd.DataFrame) -> dict:
     return results
 
 
+def get_label_ticks(ticks_df: pd.DataFrame, label_start_at: pd._libs.tslibs.timestamps.Timestamp, horizon_mins: int) -> pd.DataFrame:
+    delayed_label_start_at = label_start_at + pd.Timedelta(value=3, unit='seconds') # inference+network latency compensation
+    label_end_at = label_start_at + pd.Timedelta(value=horizon_mins, unit='minutes')
+    label_prices = ticks_df.loc[(ticks_df['date_time'] >= delayed_label_start_at) & (ticks_df['date_time'] < label_end_at)]
+    return label_prices,  label_end_at
+
+
 def label_bars(bars: list, ticks_df: pd.DataFrame, risk_level: float, horizon_mins: int,
     reward_ratios: list, add_trend_label: bool=False) -> list:
 
     for idx, row in enumerate(bars):
         
         label_prices, label_end_at = get_label_ticks(ticks_df, label_start_at=row['close_at'], horizon_mins=horizon_mins)
-        if len(label_prices) < 20:
+
+        label_duration = label_end_at - row['close_at']
+        if label_duration < pd.Timedelta(minutes=5):
+            print('Dropping label, less then 5min from bar close_at:', row['close_at'])
+            continue
+
+        if len(label_prices) < 30:
             print('Dropping label, only', len(label_prices['price']), 'trades;' 'start at:', row['close_at'])
             continue
 

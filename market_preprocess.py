@@ -98,14 +98,16 @@ def merge_symbol_stats(df):
     return sym_meta
 
 
-def transform_prices(df: pd.DataFrame) -> tuple:
+def transform_prices(df: pd.DataFrame) -> dict:
     df = df.set_index('date_time', drop=True)
     r = {}
     r['close'] = df.pivot(columns='symbol', values='close')
     r['returns'] = r['close'].diff().dropna()  # returns
-    r['log_returns'] = pd.DataFrame(np.log(r['close'])).diff().dropna() # log
-    r['zs_log_returns'] = (r['log_returns'] - r['log_returns'].mean()) / r['log_returns'].std(ddof=0)  # z-score
-    r['g_zs_log_returns'] = outlier_squeeze(r['zs_log_returns'], t=4) # reduce outliners
+    r['log_returns'] = pd.DataFrame(np.log(r['close'])).diff().dropna() # log return
+    r['log_returns_zs'] = (r['log_returns'] - r['log_returns'].mean()) / r['log_returns'].std(ddof=0)  # z-score
+    r['log_returns_zs_g'] = outlier_squeeze(r['log_returns_zs']) # reduce outliners
+    # r['log_returns_mad'] = (r['log_returns'] - r['log_returns'].median()) / r['log_returns'].median()  # mad
+    # r['log_returns_mad_g'] = outlier_squeeze(r['log_returns_mad']) # reduce outliners
     return r
 
 
@@ -122,9 +124,9 @@ def prepare_data(start_date: str, end_date: str, beta_symbol: str=None) -> dict:
     r.update(pivot_results)
     if beta_symbol:
         beta_results = transform_prices(df_all[df_all.symbol == beta_symbol])
-        g_zs_log_returns_resid = colwise_linreg_residuals(
-            df=pivot_results['g_zs_log_returns'],
-            beta_series=beta_results['g_zs_log_returns'][beta_symbol]
+        log_returns_resid_zs_g = colwise_linreg_residuals(
+            df=pivot_results['log_returns_zs_g'],
+            beta_series=beta_results['log_returns_zs_g'][beta_symbol]
             )
-        r['g_zs_log_returns_resid'] = g_zs_log_returns_resid
+        r['log_returns_resid_zs_g'] = log_returns_resid_zs_g
     return r

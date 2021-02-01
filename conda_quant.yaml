@@ -36,6 +36,7 @@ dependencies:
   # - pandarallel
   # - swifter
   - prefect[viz, gcp, aws]
+  - graphviz
   - joblib
   - tenacity
   - psutil

@@ -1,7 +1,6 @@
 from datetime import timedelta, datetime, date as dt
 from psutil import cpu_count
 from prefect import Flow, Parameter, task, unmapped
-# from prefect.engine.executors import DaskExecutor, LocalExecutor
 from prefect.executors import DaskExecutor, LocalExecutor
 from utils_dates import get_open_market_dates, find_remaining_dates
 from polygon_s3 import list_symbol_dates, get_and_save_date_df
@@ -56,14 +55,15 @@ def run_flow(symbols: list, tick_type: str, start_date: str,
         raise ValueError('symbols expects a list type')
 
     flow = get_flow()
-    # executor = LocalExecutor()
+    
     executor = DaskExecutor(
         cluster_kwargs={
             'n_workers': n_workers,
             'processes': processes,
             'threads_per_worker': threads_per_worker,
-        }
-    )
+        })
+    # executor = LocalExecutor()
+    
     flow_state = flow.run(
         executor=executor,
         symbols=symbols,

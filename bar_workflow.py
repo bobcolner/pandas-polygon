@@ -101,7 +101,7 @@ def bar_workflow(symbol: str, date: str, thresh: dict, add_label: bool=True) -> 
     # clean ticks
     ft_ticks_df = pd.DataFrame(filtered_ticks)
     ft_ticks_df['price_clean'] = ft_ticks_df['price']
-    ft_ticks_df.loc[ft_ticks_df.status != 'clean', 'price_clean'] = None
+    ft_ticks_df.loc[ft_ticks_df['status'] != 'clean', 'price_clean'] = None
 
     if add_label:
         bars = label_bars(
@@ -123,7 +123,8 @@ def bar_workflow(symbol: str, date: str, thresh: dict, add_label: bool=True) -> 
     return bar_result
 
 
-def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict, ray_on: bool=False) -> list:
+def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict,
+    add_label: bool, ray_on: bool=False) -> list:
 
     daily_stats_df = get_symbol_vol_filter(symbol, start_date, end_date)
     bar_dates = []
@@ -135,9 +136,9 @@ def bar_dates_workflow(symbol: str, start_date: str, end_date: str, thresh: dict
         if ray_on:
             import ray
             bar_workflow_ray = ray.remote(bar_workflow)
-            bars = bar_workflow_ray.remote(symbol, row.date, thresh)
+            bars = bar_workflow_ray.remote(symbol, row.date, thresh, add_label)
         else:
-            bars = bar_workflow(symbol, row.date, thresh)
+            bars = bar_workflow(symbol, row.date, thresh, add_label)
 
         bar_dates.append(bars)
 

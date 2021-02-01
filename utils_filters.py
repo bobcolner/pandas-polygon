@@ -2,6 +2,79 @@ import numpy as np
 import pandas as pd
 
 
+# https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
+def mad_filter_batch(ticks_df: pd.DataFrame, col: str='price', value_window: int=11,
+    devations_window: int=333, k: int=22) -> pd.DataFrame:
+
+    df = ticks_df[ticks_df.irregular==False].copy()
+    df[col+'_median'] = df[col].rolling(value_window, min_periods=value_window, center=False).median()
+    df[col+'_median_diff'] = abs(df[col] - df[col+'_median'])
+    df[col+'_median_diff_median'] = df[col+'_median_diff'].rolling(devations_window, min_periods=value_window, center=False).median()
+    df.loc[df[col+'_median_diff_median'] < 0.005, col+'_median_diff_median'] = 0.005  # enforce lower bound
+    df.loc[df[col+'_median_diff_median'] > 0.05, col+'_median_diff_median'] = 0.05  # enforce max bound
+    df['mad_outlier'] = abs(df[col] - df[col+'_median']) > (df[col+'_median_diff_median'] * k)
+    df = df.dropna()
+    print(df.mad_outlier.value_counts() / df.shape[0])
+    return df
+
+
+class MAD:
+    def __init__(self, value_length: int=11, deviation_length: int=333, k: int=22):
+        self.value_length = value_length
+        self.deviation_length = deviation_length
+        self.k = k
+        self.values = []
+        self.deviations = []
+
+    def update(self, next_value):
+        self.values.append(next_value)
+        self.values = self.values[-self.value_length:]  # only keep window length
+        self.value_median = np.median(self.values)
+        self.value_median_diff = next_value - self.value_median
+        # self.value_median_pct_change = self.value_median_diff / self.value_median
+        self.deviations.append(self.value_median_diff)
+        self.deviations = self.deviations[-self.deviation_length:]  # only keep window length
+        self.deviations_median = np.median(self.deviations)
+        self.deviations_median = 0.005 if self.deviations_median < 0.005 else self.deviations_median  # enforce lower limit
+        self.deviations_median = 0.05 if self.deviations_median > 0.05 else self.deviations_median  # enforce upper limit
+        # final tick status logic
+        if len(self.values) < self.value_length:
+            self.status = 'mad_warmup'
+        elif abs(self.value_median_diff) > (self.deviations_median * self.k):
+            self.status = 'mad_outlier'
+        else:
+            self.status = 'mad_clean'
+
+        return self.value_median
+
+
+class JMA:
+    def __init__(self, start_value: float, length: int=10, power: int=1, phase: float=0.0):
+        self.state = jma_starting_state(start_value)
+        self.length = length
+        self.power = power
+        self.phase = phase
+
+    def update(self, next_value):
+        self.state = jma_filter_update(
+            value=next_value,
+            state=self.state,
+            length=self.length,
+            power=self.power,
+            phase=self.phase
+            )
+        return self.state['jma']
+
+
+def jma_starting_state(start_value: float) -> dict:
+    return {
+        'e0': start_value,
+        'e1': 0.0,
+        'e2': 0.0,
+        'jma': start_value,
+        }
+
+
 def jma_filter_update(value: float, state: dict, length: int, power: float, phase: float) -> dict:
     if phase < -100:
         phase_ratio = 0.5
@@ -25,13 +98,8 @@ def jma_filter_update(value: float, state: dict, length: int, power: float, phas
 
 
 def jma_rolling_filter(series: pd.Series, length: int, power: float, phase: float) -> list:
-    state = {
-        'e0': series.values[0], 
-        'e1': 0.0, 
-        'e2': 0.0, 
-        'jma': series.values[0],
-        }
     jma = []
+    state = jma_starting_state(start_value=series.values[0])
     for value in series:
         state = jma_filter_update(value, state, length, power, phase)
         jma.append(state['jma'])
@@ -93,11 +161,3 @@ def supersmoother(x: list, n: int=10) -> np.ndarray:
     for i in range(3, len(x)):
         ss[i] = c1 * (x[i] + x[i-1]) / 2 + c2 * ss[i-1] + c3 * ss[i-2]
     return ss
-
-
-def median_outlier_filter(df: pd.DataFrame, col: str='price', window: int=5, zthresh: int=10) -> pd.DataFrame:
-    # https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
-    df['filter'] = df[col].rolling(window, center=False, min_periods=window).median()
-    df['filter_diff'] = abs(df[col] - df['filter'])
-    df['filter_zs'] = (df['filter_diff'] - df['filter_diff'].mean()) / df['filter_diff'].std(ddof=0)
-    return df.loc[df.filter_zs < zthresh].reset_index(drop=True)

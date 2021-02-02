@@ -2,7 +2,6 @@ from statsmodels.stats.weightstats import DescrStatsW
     
 
 def output_new_bar(state: dict) -> dict:
-    from statsmodels.stats.weightstats import DescrStatsW
     
     new_bar = {}
     if state['stat']['tick_count'] == 0:
@@ -13,8 +12,6 @@ def output_new_bar(state: dict) -> dict:
     new_bar['open_at'] = state['trades']['date_time'][0]
     new_bar['close_at'] = state['trades']['date_time'][-1]
     new_bar['duration_td'] = new_bar['close_at'] - new_bar['open_at']
-    new_bar['duration_sec'] = state['stat']['duration_sec']
-    new_bar['duration_min'] = new_bar['duration_sec'] / 60
     # price
     new_bar['price_open'] = state['trades']['price'][0]
     new_bar['price_close'] = state['trades']['price'][-1]
@@ -54,4 +51,5 @@ def output_new_bar(state: dict) -> dict:
     new_bar['tick_imbalance'] = state['stat']['tick_imbalance']
     new_bar['volume_imbalance'] = state['stat']['volume_imbalance']
     new_bar['dollar_imbalance'] = state['stat']['dollar_imbalance']
+
     return new_bar

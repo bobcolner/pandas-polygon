@@ -1,6 +1,16 @@
+from datetime import timedelta
 import pandas as pd
 from bar_features import output_new_bar
 from utils_filters import jma_filter_update, jma_starting_state, MAD, JMA
+
+
+
+class Bar:
+    def __init__(self):
+
+
+    def update(self):
+
 
 
 def tick_rule(latest_price: float, prev_price: float, last_side: int=0) -> int:
@@ -44,10 +54,7 @@ def reset_state(thresh: dict={}) -> dict:
     state['thresh'] = thresh
     state['stat'] = {}
     # accumulators
-    state['stat']['duration_sec'] = 0
     state['stat']['duration_td'] = None
-
-
     state['stat']['price_min'] = 10 ** 5
     state['stat']['price_max'] = 0
     state['stat']['price_range'] = 0
@@ -101,25 +108,17 @@ def check_bar_thresholds(state: dict) -> dict:
         if state['stat'][state['thresh']['renko_return']] < state['thresh']['renko_bear']:
             state['trigger_yet?!'] = 'renko_down'
 
-    if 'max_duration_sec' in state['thresh'] and state['stat']['duration_sec'] > state['thresh']['max_duration_sec']:
-        state['trigger_yet?!'] = 'duration'
-
-    
-
     if 'volume_imbalance' in state['thresh'] and abs(state['stat']['volume_imbalance']) >= state['thresh']['volume_imbalance']:
         state['trigger_yet?!'] = 'volume_imbalance'
+    
+    if 'max_duration_td' in state['thresh'] and state['stat']['duration_td'] > state['thresh']['max_duration_td']:
+        state['trigger_yet?!'] = 'duration'
 
-    # override newbar trigger with 'minimum' thresholds
-    if 'min_duration_sec' in state['thresh'] and state['stat']['duration_sec'] < state['thresh']['min_duration_sec']:
+    # over-ride newbar trigger with 'minimum' thresholds
+    if 'min_duration_td' in state['thresh'] and state['stat']['duration_td'] < state['thresh']['min_duration_td']:
         state['trigger_yet?!'] = 'waiting'
 
     if 'min_tick_count' in state['thresh'] and state['stat']['tick_count'] < state['thresh']['min_tick_count']:
-        state['trigger_yet?!'] = 'waiting'
-
-    if 'min_price_range' in state['thresh'] and state['stat']['price_range'] < state['thresh']['min_price_range']:
-        state['trigger_yet?!'] = 'waiting'
-
-    if 'min_jma_range' in state['thresh'] and state['stat']['jma_range'] < state['thresh']['min_jma_range']:
         state['trigger_yet?!'] = 'waiting'
 
     return state
@@ -144,7 +143,6 @@ def update_bar_state(tick: dict, state: dict, bars: list, thresh: dict={}) -> tu
 
     state = imbalance_net(state)
     # state = imbalance_runs(state)
-    state['stat']['duration_sec'] = (tick['date_time'].value - state['trades']['date_time'][0].value) // 10**9
     state['stat']['duration_td'] = state['trades']['date_time'][-1] - state['trades']['date_time'][0]
     state['stat']['tick_count'] += 1
     state['stat']['volume'] += tick['volume']
@@ -172,8 +170,9 @@ def update_bar_state(tick: dict, state: dict, bars: list, thresh: dict={}) -> tu
 
 def filter_tick(tick: dict, mad_filter: MAD, jma_filter: JMA) -> dict:
 
-    mad_filter.update(next_value=tick['price'])  # update mad object
     tick['date_time'] = tick['sip_dt'].tz_localize('UTC').tz_convert('America/New_York')
+
+    mad_filter.update(next_value=tick['price'])  # update mad filter
 
     if tick['volume'] < 1:  # zero volume/size tick
         tick['status'] = 'zero_volume'
@@ -183,13 +182,21 @@ def filter_tick(tick: dict, mad_filter: MAD, jma_filter: JMA) -> dict:
         tick['status'] = 'ts_delta'
     elif mad_filter.status != 'mad_clean':  # MAD filter outlier
         tick['status'] = 'mad_outlier'
-    else:
+    else:  # 'clean' tick
         tick['status'] = 'clean'
-        tick['jma'] = jma_filter.update(next_value=tick['price'])
+        tick['jma'] = jma_filter.update(next_value=tick['price'])  # update jma filter
+        if tick['date_time'].hour < 9:  
+            tick['status'] = 'clean_pre_market'
+        elif tick['date_time'].hour >= 16:
+            tick['status'] = 'clean_after_hours'
+        else:
+            tick['status'] = 'clean_open_market'
 
+    # remove fields
     tick.pop('sip_dt', None)
     tick.pop('exchange_dt', None)
     tick.pop('irregular', None)
+
     return tick
 
 
@@ -197,23 +204,24 @@ def build_bars(ticks_df: pd.DataFrame, thresh: dict) -> tuple:
     bars = []
     ticks = []
     bar_state = reset_state(thresh)
-    mad_filter = MAD(value_length=11, deviation_length=333, k=22)
-    jma_filter = JMA(start_value=ticks_df['price'].values[0], length=7, power=2)
+    mad_filter = MAD(thresh['mad_value_winlen'], thresh['mad_deviation_winlen'], thresh['mad_k'])
+    jma_filter = JMA(ticks_df['price'].values[0], thresh['jma_winlen'], thresh['jma_power'])
 
     for t in ticks_df.itertuples():
-        tick_new = {
+        tick_raw = {
             'sip_dt': t.sip_dt,
             'exchange_dt': t.exchange_dt,
             'price': t.price,
             'volume': t.size,
             'irregular': t.irregular,
-            'status': 'new',
+            'status': 'raw',
         }
-        tick = filter_tick(tick_new, mad_filter, jma_filter)
+        tick = filter_tick(tick_raw, mad_filter, jma_filter)
 
-        if tick['status'] == 'clean':
+        if tick['status'] == 'clean_open_market':
+        # if tick['status'].startswith('clean'):
             bars, bar_state = update_bar_state(tick, bar_state, bars, thresh)
 
         ticks.append(tick)
 
-    return bars, ticks, bar_state
+    return bars, ticks
